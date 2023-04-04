@@ -16,7 +16,22 @@ defaults:
   cell_reset_state: False
   use_obs: True
   channels_mult: 1
-
+  precision: 32
+  act: "ELU"
+  dyn_input_layers: 1
+  dyn_output_layers: 1
+  dyn_rec_depth: 1
+  dyn_shared: False
+  dyn_discrete: 0
+  dyn_mean_act: 'none'
+  dyn_std_act: 'softplus'
+  dyn_temp_post:  True 
+  dyn_cell: 'gru'
+  kl_balance: '0.8'
+  kl_scale: '1.0'
+  kl_free: '1.0'
+  kl_forward: False 
+  
   # DATASET
   datadir: data
   dataset: null
@@ -32,6 +47,9 @@ defaults:
   free_nats: null
   beta: null
   clip_grad_norm_by: 10000
+  eps: 1e-4
+  weight_decay: 0.0
+  optimizer: "adam"
 
   # SUMMARIES
   logdir: logs
@@ -42,6 +60,7 @@ defaults:
   save_gifs_every: 1000
   save_model_every: 1000
   save_named_model_every: null
+  eval_every: 1
 
 mmnist:
   # MODEL
@@ -55,11 +74,18 @@ mmnist:
   cell_deter_size: 200
   cell_embed_size: 200
 
+  
+
   # DATASET
   dataset: mmnist
   seq_len: 100
   eval_seq_len: 1000
   channels: 1
+  cnn_depth: 4
+  encoder_kernels: [4, 4, 4, 4]
+  decoder_kernels: [5, 5, 6, 6]
+  decoder_thin: True
+
 
   # TRAINING
   lr: 0.0003
@@ -70,3 +96,4 @@ mmnist:
   open_loop_ctx: 36
   num_val_batches: 1
   save_named_model_every: 5000
+  

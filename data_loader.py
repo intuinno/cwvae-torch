@@ -1,5 +1,5 @@
 import numpy as np
-import datasets
+from datasets import MovingMNIST
 from torch.utils.data import DataLoader
 # import tensorflow.compat.v1 as tf
 # import tensorflow_datasets as tfds
@@ -116,11 +116,11 @@ def load_dataset(cfg, **kwargs):
             data_root=cfg.datadir,
         ).get_batch()
     elif cfg.dataset == "mmnist":
-        train_data = datasets.MovingMNIST(
+        train_data = MovingMNIST(
             cfg.datadir,
             train=True,
         )
-        test_data = datasets.MovingMNIST(
+        test_data = MovingMNIST(
             cfg.datadir,
             train=False,
         )

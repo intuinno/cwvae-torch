@@ -1,4 +1,4 @@
-import os
+
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from torch import Tensor
@@ -6,11 +6,11 @@ from torch import Tensor
 from torchvision.datasets.folder import find_classes, make_dataset
 from torchvision.datasets.video_utils import VideoClips
 from torchvision.datasets.vision import VisionDataset
+import torchvision.transforms.v2 as transforms
 
 from pathlib import Path
 from PIL import Image
-import os
-import os.path
+
 import errno
 import numpy as np
 import torch
@@ -74,39 +74,54 @@ References:
     training_file = 'moving_mnist_train.pt'
     test_file = 'moving_mnist_test.pt'
 
-    def __init__(self, root, train=True, transform=None, download=True):
+    def __init__(self, root, train=True, transform=None, download=False, output_format="TCHW"):
         self.root = Path(root).expanduser() / self.data_folder
         self.transform = transform
         self.train = train  # training set or test set
+        data_dir = self.root / self.processed_folder
 
-        if download:
+        if download or not self._check_exists():
             self.download()
-
-        if not self._check_exists():
-            raise RuntimeError('Dataset not found.' +
-                               ' You can use download=True to download it')
         
         super().__init__(self.root)
-        
-        print("Processing")
 
-        self.split_folder = self.root / self.raw_folder
-            
-        self.samples = make_dataset(self.split_folder, extensions='.mp4')
-        
         if self.train:
             label = 0
+            save_filename = self.training_file
+            clip_length = 100
         else:
             label = 1
+            save_filename = self.test_file
+            clip_length = 1000
+        
+        
+        if self._check_exists():
+            self.video_clips = torch.load(data_dir / save_filename)
             
-        video_list = [x[0] for x in self.samples if x[1] == label]
-        self.video_clips = VideoClips(
-            video_list,
-            num_workers = 4
-        )
+        else:        
+            print("Processing")
+            self.split_folder = self.root / self.raw_folder
+            self.samples = make_dataset(self.split_folder, extensions='.mp4')
+            data_dir.mkdir(parents=True, exist_ok=True)
+            video_list = [x[0] for x in self.samples if x[1] == label]
+            self.video_clips = VideoClips(
+                video_list,
+                num_workers=4,
+                output_format=output_format,
+                clip_length_in_frames=clip_length
+            )
+            torch.save(self.video_clips, data_dir / save_filename )
+
+        self.gray_scaler = transforms.Grayscale()
+
+            
+    def __len__(self) -> int:
+        return self.video_clips.num_clips()
 
     def __getitem__(self, idx: int):
         video, audio, info, video_idx = self.video_clips.get_clip(idx)
+        
+        video = self.gray_scaler(video)
 
         video = video.to(torch.float32) / 255.0
 
@@ -117,30 +132,26 @@ References:
 
 
     def _check_exists(self):
-        return os.path.exists( self.root / self.raw_folder / "test-seq1000") and \
-            os.path.exists(self.root / self.raw_folder / "train-seq100")
+        test_file = self.root / self.processed_folder / self.test_file
+        train_file = self.root / self.processed_folder / self.training_file
+        return test_file.is_file() and train_file.is_file()
 
     def download(self):
         """Download the Moving MNIST data if it doesn't exist in processed_folder already."""
 
-        if self._check_exists():
-            return
-
-        # download files
-        try:
-            os.makedirs(os.path.join(self.root, self.raw_folder))
-            os.makedirs(os.path.join(self.root, self.processed_folder))
-        except OSError as e:
-            if e.errno == errno.EEXIST:
-                pass
-            else:
-                raise
-
+        dir = self.root / self.raw_folder
         url = self.data_url
-        print('Downloading ' + url)
-        data = urllib.request.urlopen(url)
         filename = url.rpartition('/')[-1]
         file_path = self.root / self.raw_folder / filename
+
+        if file_path.is_file():
+            return 
+        
+        dir.mkdir(parents=True, exist_ok=True)
+        
+        print('Downloading ' + url)
+        data = urllib.request.urlopen(url)
+        
         with open(file_path, 'wb') as f:
             f.write(data.read())
         extract_path = self.root / self.raw_folder

@@ -1,7 +1,7 @@
 import numpy as np
 import argparse
 import os
-import yaml
+import ruamel.yaml as yaml
 import torch
 import pathlib
 import sys
@@ -11,37 +11,12 @@ import sys
 # from loggers.checkpoint import Checkpoint
 from data_loader import *
 import tools
+from cwvae import CWVAE
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Using {device} device")
 
-# def train_setup(cfg, loss):
-#     session_config = tf.ConfigProto(device_count={"GPU": 1}, log_device_placement=False)
-#     session = tf.Session(config=session_config)
-#     step = tools.Step(session)
 
-#     with tf.name_scope("optimizer"):
-#         # Getting all trainable variables.
-#         weights = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
-
-#         # Creating optimizer.
-#         optimizer = tf.keras.optimizers.Adam(learning_rate=cfg.lr, epsilon=1e-04)
-
-#         # Computing gradients.
-#         grads = optimizer.get_gradients(loss, weights)
-#         grad_norm = tf.global_norm(grads)
-
-#         # Clipping gradients by global norm, and applying gradient.
-#         if cfg.clip_grad_norm_by is not None:
-#             capped_grads = tf.clip_by_global_norm(grads, cfg.clip_grad_norm_by)[0]
-#             capped_gvs = [
-#                 tuple((capped_grads[i], weights[i])) for i in range(len(weights))
-#             ]
-#             apply_grads = optimizer.apply_gradients(capped_gvs)
-#         else:
-#             gvs = zip(grads, weights)
-#             apply_grads = optimizer.apply_gradients(gvs)
-#     return apply_grads, grad_norm, session, step
 
 
 if __name__ == "__main__":
@@ -49,9 +24,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--configs', nargs='+', required=True)
     args, remaining = parser.parse_known_args()
-    configs = yaml.safe_load(
-        (pathlib.Path(sys.argv[0].parent / 'configs.yml').read_text())
-    )
+    rootdir = pathlib.Path(sys.argv[0]).parent
+    configs = yaml.safe_load((rootdir / 'configs.yml').read_text())
+    
     defaults = {}
     for name in args.configs:
         defaults.update(configs[name])
@@ -60,24 +35,58 @@ if __name__ == "__main__":
         arg_type = tools.args_type(value)
         parser.add_argument(f'--{key}', type=arg_type, default=arg_type(value))
     configs = parser.parse_args(remaining)
-
+    configs.device = device
     
     # Creating model dir with experiment name.
-    exp_rootdir = os.path.join(cfg.logdir, cfg.dataset, tools.exp_name(cfg))
-    os.makedirs(exp_rootdir, exist_ok=True)
+    exp_logdir = rootdir / configs.logdir / configs.dataset / tools.exp_name(configs)
+    print('Logdir', exp_logdir)
+    exp_logdir.mkdir(parents=True, exist_ok=True)
 
     # Dumping config.
-    print(cfg)
-    with open(os.path.join(exp_rootdir, "config.yml"), "w") as f:
-        yaml.dump(dict(cfg), f, default_flow_style=False)
+    with open(exp_logdir / "config.yml", "w") as f:
+        yaml.dump(configs, f, default_flow_style=False)
 
     # Load dataset.
-    train_dataloader, val_dataloader = load_dataset(cfg)
+    train_dataloader, val_dataloader = load_dataset(configs)
 
-    for epoch in range(cfg.num_epoch):
+    # Build model
+    model = CWVAE(configs).to(device)
+
+    # Build logger
+    logger = tools.Logger(exp_logdir)
+    metrics = {}
+
+    for epoch in range(configs.num_epochs):
+        
         
         for i, x in enumerate(train_dataloader):
             x = x.to(device)
+            post, context, met = model.train(x)
+            for name, values in met.items():
+                if not name in metrics.keys():
+                    metrics[name] = [value]
+                else:
+                    metrics[name].append(value)
+        
+        # Write training summary 
+        for name,values in metrics.items():
+            logger.scalar(name, float(np.mean(values)))
+            metrics[name] = [] 
+            
+        # Write evaluation summary
+            
+        if epoch % configs.eval_every == 0:
+            openl = model.video_pred(next(val_dataloader))
+            
+            save_summary
+        
+        if epoch % configs.save_model_every == 0:
+            save_model
+            
+        if epoch % configs.save_gifs_every == 0:
+            save_gifs
+            
+        
 
     # Build model.
     model_components = build_model(cfg)

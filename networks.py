@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from torch import distributions as torchd
 
 import tools
-
+import einops
 
 class RSSM(nn.Module):
 
@@ -206,7 +206,7 @@ class RSSM(nn.Module):
           'tanh5': lambda: 5.0 * torch.tanh(mean / 5.0),
       }[self._mean_act]()
       std = {
-          'softplus': lambda: torch.softplus(std),
+          'softplus': lambda: F.softplus(std),
           'abs': lambda: torch.abs(std + 1),
           'sigmoid': lambda: torch.sigmoid(std),
           'sigmoid2': lambda: 2 * torch.sigmoid(std / 2),
@@ -238,7 +238,7 @@ class RSSM(nn.Module):
 
 class ConvEncoder(nn.Module):
 
-  def __init__(self, grayscale=False,
+  def __init__(self, channels=3,
                depth=32, act=nn.ReLU, kernels=(4, 4, 4, 4)):
     super(ConvEncoder, self).__init__()
     self._act = act
@@ -248,10 +248,7 @@ class ConvEncoder(nn.Module):
     layers = []
     for i, kernel in enumerate(self._kernels):
       if i == 0:
-        if grayscale:
-          inp_dim = 1
-        else:
-          inp_dim = 3
+        inp_dim = channels
       else:
         inp_dim = 2 ** (i-1) * self._depth
       depth = 2 ** i * self._depth
@@ -260,13 +257,10 @@ class ConvEncoder(nn.Module):
     self.layers = nn.Sequential(*layers)
 
   def __call__(self, obs):
-    x = obs['image'].reshape((-1,) + tuple(obs['image'].shape[-3:]))
-    x = x.permute(0, 3, 1, 2)
+    x = einops.rearrange(obs, 'b t c w h -> (b t) c w h')
     x = self.layers(x)
-    x = x.reshape([x.shape[0], np.prod(x.shape[1:])])
-    shape = list(obs['image'].shape[:-3]) + [x.shape[-1]]
-    return x.reshape(shape)
-
+    x = einops.rearrange(x, '(b t) c w h -> b t (c w h)', b=obs.shape[0])
+    return x  
 
 class ConvDecoder(nn.Module):
 
