@@ -1,4 +1,4 @@
-import yaml
+import ruamel.yaml as yaml
 from pathlib import Path
 import numpy as np
 import imageio
