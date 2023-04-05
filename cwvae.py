@@ -74,6 +74,7 @@ class CWVAE(nn.Module):
         
         with tools.RequiresGrad(self):
             with torch.cuda.amp.autocast(self._use_amp):
+                obs = self.preprocess(obs)
                 embed = self.encoder(obs)
                 b, t, f = embed.shape
                 empty_action = torch.empty(b, t, 0).to(device)
@@ -129,11 +130,13 @@ class CWVAE(nn.Module):
         model = torch.cat([initial_decode + 0.5,  openl + 0.5], 1)
         diff = (model - truth + 1) / 2
         return_video = torch.cat([truth, model, diff], 2) 
+        # return_video = (return_video * 255).to(dtype=torch.uint8)
         return to_np(return_video), recon_loss
         
     def preprocess(self, obs):
-        # obs = obs.copy()
+        obs = obs.clone()
         obs = obs / 255.0 - 0.5
+        obs.to(device)
         return obs
                 
         

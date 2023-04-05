@@ -12,6 +12,8 @@ import sys
 from data_loader import *
 import tools
 from cwvae import CWVAE
+from datetime import datetime
+
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Using {device} device")
@@ -60,6 +62,9 @@ if __name__ == "__main__":
             
         # Write evaluation summary
         print(f'======== Epoch {epoch} / {configs.num_epochs} ==========')
+        now = datetime.now()
+        current_time = now.strftime("%H:%M:%S")
+        print("Current Time =", current_time)
         print (f"Evaluating ... ") 
         logger.step = epoch
         if epoch % configs.eval_every == 0:
