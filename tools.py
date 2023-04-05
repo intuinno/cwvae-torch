@@ -11,7 +11,8 @@ from torch.utils.tensorboard import SummaryWriter
 import time
 import json
 import re
-
+from torch import distributions as torchd
+from torch.nn import functional as F
 class AttrDict(dict):
 
     __setattr__ = dict.__setitem__
@@ -393,3 +394,52 @@ class Logger:
     B, T, H, W, C = value.shape
     value = value.transpose(1, 4, 2, 0, 3).reshape((1, T, C, H, B*W))
     self._writer.add_video(name, value, step, 16)
+
+
+
+class SampleDist:
+
+  def __init__(self, dist, samples=100):
+    self._dist = dist
+    self._samples = samples
+
+  @property
+  def name(self):
+    return 'SampleDist'
+
+  def __getattr__(self, name):
+    return getattr(self._dist, name)
+
+  def mean(self):
+    samples = self._dist.sample(self._samples)
+    return torch.mean(samples, 0)
+
+  def mode(self):
+    sample = self._dist.sample(self._samples)
+    logprob = self._dist.log_prob(sample)
+    return sample[torch.argmax(logprob)][0]
+
+  def entropy(self):
+    sample = self._dist.sample(self._samples)
+    logprob = self.log_prob(sample)
+    return -torch.mean(logprob, 0)
+
+
+class OneHotDist(torchd.one_hot_categorical.OneHotCategorical):
+
+  def __init__(self, logits=None, probs=None):
+    super().__init__(logits=logits, probs=probs)
+
+  def mode(self):
+    _mode = F.one_hot(torch.argmax(super().logits, axis=-1), super().logits.shape[-1])
+    return _mode.detach() + super().logits - super().logits.detach()
+
+  def sample(self, sample_shape=(), seed=None):
+    if seed is not None:
+      raise ValueError('need to check')
+    sample = super().sample(sample_shape)
+    probs = super().probs
+    while len(probs.shape) < len(sample.shape):
+      probs = probs[None]
+    sample += probs - probs.detach()
+    return sample

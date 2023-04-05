@@ -1,6 +1,7 @@
 defaults:
 
   # MODEL
+  device: 'cuda:2'
   levels: 3
   tmp_abs_factor: 6
   dec_stddev: null
@@ -46,7 +47,7 @@ defaults:
   kl_grad_post_perc: null
   free_nats: null
   beta: null
-  clip_grad_norm_by: 10000
+  clip_grad_norm_by: 100
   eps: 1e-4
   weight_decay: 0.0
   optimizer: "adam"
@@ -94,4 +95,69 @@ mmnist:
   open_loop_ctx: 36
   num_val_batches: 1
   save_named_model_every: 5000
+  
+mmnist_debug:
+  # MODEL
+  levels: 3
+  img_size: [64, 64]
+  tmp_abs_factor: 6
+  dec_stddev: 1.0
+  enc_dense_embed_size: 1000
+  cell_type: RSSMCell
+  cell_stoch_size: 50
+  cell_deter_size: 200
+  cell_embed_size: 200
+  precision: 16
+
+  
+
+  # DATASET
+  dataset: mmnist
+  seq_len: 100
+  eval_seq_len: 1000
+  channels: 1
+  cnn_depth: 32
+  encoder_kernels: [4, 4, 4, 4]
+  decoder_kernels: [5, 5, 6, 6]
+  decoder_thin: True
+
+
+  # TRAINING
+  lr: 0.0003
+  batch_size: 512
+  num_epochs: 300
+
+  # SUMMARIES
+mmnist_debug2:
+  # MODEL
+  levels: 3
+  img_size: [64, 64]
+  tmp_abs_factor: 6
+  dec_stddev: 1.0
+  enc_dense_embed_size: 1000
+  cell_type: RSSMCell
+  cell_stoch_size: 32
+  cell_deter_size: 600
+  cell_embed_size: 600
+  dyn_discrete: 32
+
+  precision: 16
+
+  
+
+  # DATASET
+  dataset: mmnist
+  seq_len: 100
+  eval_seq_len: 1000
+  channels: 1
+  cnn_depth: 48
+  encoder_kernels: [4, 4, 4, 4]
+  decoder_kernels: [5, 5, 6, 6]
+  decoder_thin: True
+
+
+  # TRAINING
+  lr: 0.0003
+  batch_size: 65536
+  num_epochs: 300
   

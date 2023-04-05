@@ -6,7 +6,7 @@ import numpy as np
 
 to_np = lambda x: x.detach().cpu().numpy()
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
+# device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 class CWVAE(nn.Module):
@@ -67,6 +67,7 @@ class CWVAE(nn.Module):
             opt=configs.optimizer,
             use_amp=self._use_amp
         )
+        self.device = configs.device
         
     def train(self, obs):
         # obs = self.preprocess(obs)
@@ -77,7 +78,7 @@ class CWVAE(nn.Module):
                 obs = self.preprocess(obs)
                 embed = self.encoder(obs)
                 b, t, f = embed.shape
-                empty_action = torch.empty(b, t, 0).to(device)
+                empty_action = torch.empty(b, t, 0).to(self.device)
                 post, prior = self.dynamics.observe(embed, empty_action)
                 kl_balance = tools.schedule(self.configs.kl_balance, self.step)
                 kl_free = tools.schedule(self.configs.kl_free, self.step)
@@ -110,12 +111,12 @@ class CWVAE(nn.Module):
         
     def video_pred(self, data):
         b, t, c, w, h = data.shape
-        num_initial = 5
+        num_initial = 20
         num_gifs = 6
         data = self.preprocess(data)
         truth = data[:num_gifs] + 0.5 
         embed = self.encoder(data)
-        empty_action = torch.empty(b, t, 0).to(device)
+        empty_action = torch.empty(b, t, 0).to(self.device)
         
         post, _ = self.dynamics.observe(embed[:, :num_initial], empty_action[:,:num_initial])
         initial_decode = self.decoder(self.dynamics.get_feat(post)).mode()[:num_gifs]
@@ -134,9 +135,9 @@ class CWVAE(nn.Module):
         return to_np(return_video), recon_loss
         
     def preprocess(self, obs):
-        obs = obs.clone()
+        # obs = obs.clone()
         obs = obs / 255.0 - 0.5
-        obs.to(device)
+        obs.to(self.device)
         return obs
                 
         

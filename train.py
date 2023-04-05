@@ -15,8 +15,8 @@ from cwvae import CWVAE
 from datetime import datetime
 
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
-print(f"Using {device} device")
+# device = "cuda" if torch.cuda.is_available() else "cpu"
+# print(f"Using {device} device")
 
 
 
@@ -30,17 +30,22 @@ if __name__ == "__main__":
     configs = yaml.safe_load((rootdir / 'configs.yml').read_text())
     
     defaults = {}
+    exp_name = ""
     for name in args.configs:
         defaults.update(configs[name])
+        exp_name = exp_name + name + '_'
     parser = argparse.ArgumentParser()
     for key, value in sorted(defaults.items(), key=lambda x: x[0]):
         arg_type = tools.args_type(value)
         parser.add_argument(f'--{key}', type=arg_type, default=arg_type(value))
     configs = parser.parse_args(remaining)
-    configs.device = device
+    
+    now = datetime.now()
+    date_time = now.strftime("%Y%m%d_%H%M%S")
+    exp_name += date_time
     
     # Creating model dir with experiment name.
-    exp_logdir = rootdir / configs.logdir / configs.dataset / tools.exp_name(configs)
+    exp_logdir = rootdir / configs.logdir / configs.dataset / exp_name
     print('Logdir', exp_logdir)
     exp_logdir.mkdir(parents=True, exist_ok=True)
 
@@ -52,7 +57,8 @@ if __name__ == "__main__":
     train_dataloader, val_dataloader = load_dataset(configs)
 
     # Build model
-    model = CWVAE(configs).to(device)
+    model = CWVAE(configs).to(configs.device)
+    print(f"========== Using {configs.device} device ===================")
 
     # Build logger
     logger = tools.Logger(exp_logdir, 0)
@@ -69,20 +75,20 @@ if __name__ == "__main__":
         logger.step = epoch
         if epoch % configs.eval_every == 0:
             x = next(iter(val_dataloader))
-            openl, recon_loss = model.video_pred(x.to(device))
+            openl, recon_loss = model.video_pred(x.to(configs.device))
             logger.video('eval_openl', openl)
             logger.scalar('eval_video_nll', recon_loss)
             logger.write(fps=True)
         
         print(f"Training ...")
         for i, x in enumerate(train_dataloader):
-            x = x.to(device)
+            x = x.to(configs.device)
             post, context, met = model.train(x)
             for name, values in met.items():
                 if not name in metrics.keys():
-                    metrics[name] = [value]
+                    metrics[name] = [values]
                 else:
-                    metrics[name].append(value)
+                    metrics[name].append(values)
         
         # Write training summary 
         for name,values in metrics.items():
