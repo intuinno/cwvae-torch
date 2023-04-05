@@ -6,6 +6,9 @@ import numpy as np
 
 to_np = lambda x: x.detach().cpu().numpy()
 
+device = "cuda" if torch.cuda.is_available() else "cpu"
+
+
 class CWVAE(nn.Module):
     
     def __init__(self, configs):
@@ -73,7 +76,7 @@ class CWVAE(nn.Module):
             with torch.cuda.amp.autocast(self._use_amp):
                 embed = self.encoder(obs)
                 b, t, f = embed.shape
-                empty_action = torch.empty(b, t, 0)
+                empty_action = torch.empty(b, t, 0).to(device)
                 post, prior = self.dynamics.observe(embed, empty_action)
                 kl_balance = tools.schedule(self.configs.kl_balance, self.step)
                 kl_free = tools.schedule(self.configs.kl_free, self.step)
@@ -111,7 +114,7 @@ class CWVAE(nn.Module):
         data = self.preprocess(data)
         truth = data[:num_gifs] + 0.5 
         embed = self.encoder(data)
-        empty_action = torch.empty(b, t, 0)
+        empty_action = torch.empty(b, t, 0).to(device)
         
         post, _ = self.dynamics.observe(embed[:, :num_initial], empty_action[:,:num_initial])
         initial_decode = self.decoder(self.dynamics.get_feat(post)).mode()[:num_gifs]

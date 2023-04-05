@@ -52,7 +52,6 @@ if __name__ == "__main__":
     # Build model
     model = CWVAE(configs).to(device)
 
-
     # Build logger
     logger = tools.Logger(exp_logdir, 0)
     metrics = {}
@@ -64,7 +63,8 @@ if __name__ == "__main__":
         print (f"Evaluating ... ") 
         logger.step = epoch
         if epoch % configs.eval_every == 0:
-            openl, recon_loss = model.video_pred(next(iter(val_dataloader)))
+            x = next(iter(val_dataloader))
+            openl, recon_loss = model.video_pred(x.to(device))
             logger.video('eval_openl', openl)
             logger.scalar('eval_video_nll', recon_loss)
         
