@@ -52,13 +52,23 @@ if __name__ == "__main__":
     # Build model
     model = CWVAE(configs).to(device)
 
+
     # Build logger
-    logger = tools.Logger(exp_logdir)
+    logger = tools.Logger(exp_logdir, 0)
     metrics = {}
 
     for epoch in range(configs.num_epochs):
+            
+        # Write evaluation summary
+        print(f'======== Epoch {epoch} / {configs.num_epochs} ==========')
+        print (f"Evaluating ... ") 
+        logger.step = epoch
+        if epoch % configs.eval_every == 0:
+            openl, recon_loss = model.video_pred(next(iter(val_dataloader)))
+            logger.video('eval_openl', openl)
+            logger.scalar('eval_video_nll', recon_loss)
         
-        
+        print(f"Training ...")
         for i, x in enumerate(train_dataloader):
             x = x.to(device)
             post, context, met = model.train(x)
@@ -72,19 +82,14 @@ if __name__ == "__main__":
         for name,values in metrics.items():
             logger.scalar(name, float(np.mean(values)))
             metrics[name] = [] 
+        openl, recon_loss = model.video_pred(x)
+        logger.video('train_openl', openl)
             
-        # Write evaluation summary
-            
-        if epoch % configs.eval_every == 0:
-            openl = model.video_pred(next(val_dataloader))
-            
-            save_summary
-        
+        # Save Check point
         if epoch % configs.save_model_every == 0:
-            save_model
+            torch.save(model.state_dict(), exp_logdir / 'latest_model.pt')
             
-        if epoch % configs.save_gifs_every == 0:
-            save_gifs
+          
             
         
 

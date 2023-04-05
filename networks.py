@@ -257,7 +257,7 @@ class ConvEncoder(nn.Module):
     self.layers = nn.Sequential(*layers)
 
   def __call__(self, obs):
-    x = einops.rearrange(obs, 'b t c w h -> (b t) c w h')
+    x = einops.rearrange(obs, 'b t w h c -> (b t) c w h')
     x = self.layers(x)
     x = einops.rearrange(x, '(b t) c w h -> b t (c w h)', b=obs.shape[0])
     return x  

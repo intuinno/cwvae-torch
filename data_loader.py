@@ -3,6 +3,7 @@ from datasets import MovingMNIST
 from torch.utils.data import DataLoader
 # import tensorflow.compat.v1 as tf
 # import tensorflow_datasets as tfds
+import torch
 
 
 class MineRL:
@@ -145,8 +146,12 @@ def load_dataset(cfg, **kwargs):
     else:
         raise ValueError("Dataset {} not supported.".format(cfg.dataset))
     
+    if False:
+        train_data = torch.utils.data.Subset(train_data, range(200))
+        test_data = torch.utils.data.Subset(test_data, range(10))
+
     train_dataloader = DataLoader(train_data, batch_size=cfg.batch_size, shuffle=True)
-    test_dataloader = DataLoader(test_data, batch_size=cfg.batch_size, shuffle=True)
+    test_dataloader = DataLoader(test_data, batch_size=len(test_data), shuffle=True)
     return train_dataloader, test_dataloader
 
 

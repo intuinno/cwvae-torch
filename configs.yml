@@ -56,10 +56,8 @@ defaults:
   open_loop_ctx: 36
   num_val_batches: 1
   save_gifs: True
-  save_scalars_every: 1000
-  save_gifs_every: 1000
-  save_model_every: 1000
-  save_named_model_every: null
+  save_scalars_every: 1
+  save_model_every: 1
   eval_every: 1
 
 mmnist:

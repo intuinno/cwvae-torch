@@ -17,7 +17,7 @@ import torch
 import codecs
 from zipfile import ZipFile
 import urllib
-
+import einops
 
 class MovingMNIST(VisionDataset):
     """
@@ -74,7 +74,7 @@ References:
     training_file = 'moving_mnist_train.pt'
     test_file = 'moving_mnist_test.pt'
 
-    def __init__(self, root, train=True, transform=None, download=False, output_format="TCHW"):
+    def __init__(self, root, train=True, transform=None, download=False, output_format="THWC"):
         self.root = Path(root).expanduser() / self.data_folder
         self.transform = transform
         self.train = train  # training set or test set
@@ -86,11 +86,11 @@ References:
         super().__init__(self.root)
 
         if self.train:
-            label = 0
+            label = 1
             save_filename = self.training_file
             clip_length = 100
         else:
-            label = 1
+            label = 0
             save_filename = self.test_file
             clip_length = 1000
         
@@ -121,7 +121,9 @@ References:
     def __getitem__(self, idx: int):
         video, audio, info, video_idx = self.video_clips.get_clip(idx)
         
+        video = einops.rearrange(video, 't w h c -> t c w h')
         video = self.gray_scaler(video)
+        video = einops.rearrange(video, 't c w h -> t w h c')
 
         video = video.to(torch.float32) / 255.0
 

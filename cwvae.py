@@ -17,7 +17,7 @@ class CWVAE(nn.Module):
                                             act=getattr(nn,configs.act),
                                             kernels=configs.encoder_kernels)
 
-        shape = (configs.channels, *configs.img_size)
+        shape = (*configs.img_size, configs.channels)
         # Get the output embedding size of ConvEncoder by testing it
         testObs = torch.rand(1, 1, *shape) 
         embed_size = self.encoder(testObs).shape[-1]
@@ -50,7 +50,7 @@ class CWVAE(nn.Module):
             feat_size,
             depth=configs.cnn_depth,
             act=getattr(nn,configs.act),
-            shape=shape,
+            shape=(configs.channels, *configs.img_size),
             kernels=configs.decoder_kernels,
             thin=configs.decoder_thin
         )
@@ -72,7 +72,8 @@ class CWVAE(nn.Module):
         with tools.RequiresGrad(self):
             with torch.cuda.amp.autocast(self._use_amp):
                 embed = self.encoder(obs)
-                empty_action = torch.empty(*list(embed.shape[:-1]), 0)
+                b, t, f = embed.shape
+                empty_action = torch.empty(b, t, 0)
                 post, prior = self.dynamics.observe(embed, empty_action)
                 kl_balance = tools.schedule(self.configs.kl_balance, self.step)
                 kl_free = tools.schedule(self.configs.kl_free, self.step)
@@ -102,6 +103,30 @@ class CWVAE(nn.Module):
             )
         post = {k: v.detach() for k, v in post.items()}
         return post, context, metrics
+        
+    def video_pred(self, data):
+        b, t, c, w, h = data.shape
+        num_initial = 5
+        num_gifs = 6
+        data = self.preprocess(data)
+        truth = data[:num_gifs] + 0.5 
+        embed = self.encoder(data)
+        empty_action = torch.empty(b, t, 0)
+        
+        post, _ = self.dynamics.observe(embed[:, :num_initial], empty_action[:,:num_initial])
+        initial_decode = self.decoder(self.dynamics.get_feat(post)).mode()[:num_gifs]
+        init = {k: v[:,-1] for k, v in post.items()}
+        prior = self.dynamics.imagine(empty_action[:, num_initial:], init)
+        
+        feat = self.dynamics.get_feat(prior)
+        pred_obs = self.decoder(feat)
+        nll = -pred_obs.log_prob(data[:, num_initial:])
+        recon_loss = nll.mean()
+        openl = self.decoder(feat).mode()[:num_gifs]
+        model = torch.cat([initial_decode + 0.5,  openl + 0.5], 1)
+        diff = (model - truth + 1) / 2
+        return_video = torch.cat([truth, model, diff], 2) 
+        return to_np(return_video), recon_loss
         
     def preprocess(self, obs):
         # obs = obs.copy()
