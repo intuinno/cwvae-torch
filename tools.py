@@ -8,7 +8,9 @@ from skimage.metrics import structural_similarity as ssim_metric
 import matplotlib.pyplot as plt
 import torch
 from torch.utils.tensorboard import SummaryWriter
-
+import time
+import json
+import re
 
 class AttrDict(dict):
 
@@ -27,16 +29,7 @@ class AttrDict(dict):
 #         return self._modules[name]
 
 
-class Step:
-    def __init__(self, session):
-        self._session = session
-        self._step = tf.get_variable("step", initializer=lambda: 0, trainable=False)
 
-    def increment(self):
-        self._session.run(self._step.assign_add(1))
-
-    def __call__(self):
-        return self._session.run(self._step)
 
 
 def exp_name(cfg, model_dir_prefix=None):
@@ -88,24 +81,7 @@ def read_configs(config_path, base_config_path=None, **kwargs):
     return config
 
 
-def scan(cell, inputs, use_obs, initial):
-    assert initial is not None, "initial cannot be None. Pass zero_state instead."
-    # Transpose inputs to (T, B, ...)
-    inputs = tf.nest.map_structure(
-        lambda x: tf.transpose(x, [1, 0] + list(range(2, len(x.shape.as_list())))),
-        inputs,
-    )
-    outputs = tf.scan(
-        lambda agg, inp: cell(agg, inp, use_obs=use_obs), inputs, initializer=initial
-    )
-    # Transpose outputs back to (B, T, ...)
-    outputs = tf.nest.map_structure(
-        lambda x: tf.transpose(x, [1, 0] + list(range(2, len(x.shape.as_list())))),
-        outputs,
-    )
-    return outputs["out"], tf.nest.map_structure(
-        lambda x: x[:, -1, ...], outputs["state"]
-    )
+
 
 
 def _to_padded_strip(images):
@@ -217,7 +193,7 @@ class Optimizer():
                                 lr=lr,
                                 eps=eps),
             'nadam': lambda: NotImplemented(
-                                f'{config.opt} is not implemented'),
+                                f'{opt} is not implemented'),
             'adamax': lambda: torch.optim.Adamax(parameters,
                                 lr=lr,
                                 eps=eps),

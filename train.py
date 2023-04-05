@@ -67,6 +67,7 @@ if __name__ == "__main__":
             openl, recon_loss = model.video_pred(x.to(device))
             logger.video('eval_openl', openl)
             logger.scalar('eval_video_nll', recon_loss)
+            logger.write(fps=True)
         
         print(f"Training ...")
         for i, x in enumerate(train_dataloader):
@@ -84,6 +85,7 @@ if __name__ == "__main__":
             metrics[name] = [] 
         openl, recon_loss = model.video_pred(x)
         logger.video('train_openl', openl)
+        logger.write(fps=True)
             
         # Save Check point
         if epoch % configs.save_model_every == 0:
