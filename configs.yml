@@ -1,7 +1,7 @@
 defaults:
 
   # MODEL
-  device: 'cuda:2'
+  device: 'cuda:0'
   levels: 3
   tmp_abs_factor: 6
   dec_stddev: null
@@ -158,6 +158,6 @@ mmnist_debug2:
 
   # TRAINING
   lr: 0.0003
-  batch_size: 65536
+  batch_size: 128
   num_epochs: 300
   

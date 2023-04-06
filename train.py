@@ -5,6 +5,7 @@ import ruamel.yaml as yaml
 import torch
 import pathlib
 import sys
+from tqdm import tqdm
 
 # from cwvae import build_model
 # from loggers.summary import Summary
@@ -81,7 +82,7 @@ if __name__ == "__main__":
             logger.write(fps=True)
         
         print(f"Training ...")
-        for i, x in enumerate(train_dataloader):
+        for i, x in enumerate(tqdm(train_dataloader)):
             x = x.to(configs.device)
             post, context, met = model.train(x)
             for name, values in met.items():
