@@ -1,7 +1,8 @@
 defaults:
 
   # MODEL
-  device: 'cpu'
+  device: 'cuda:0'
+  exp_name: 'defaults'
   levels: 3
   tmp_abs_factor: 6
   dec_stddev: null
@@ -130,6 +131,7 @@ mmnist_debug:
   # SUMMARIES
 mmnist_debug2:
   # MODEL
+  exp_name: "mmnist_discrete"
   levels: 3
   img_size: [64, 64]
   tmp_abs_factor: 6
@@ -150,7 +152,7 @@ mmnist_debug2:
   seq_len: 100
   eval_seq_len: 1000
   channels: 1
-  cnn_depth: 48
+  cnn_depth: 32
   encoder_kernels: [4, 4, 4, 4]
   decoder_kernels: [5, 5, 6, 6]
   decoder_thin: True

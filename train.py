@@ -32,15 +32,16 @@ if __name__ == "__main__":
     configs = yaml.safe_load((rootdir / 'configs.yml').read_text())
     
     defaults = {}
-    exp_name = ""
     for name in args.configs:
         defaults.update(configs[name])
-        exp_name = exp_name + name + '_'
     parser = argparse.ArgumentParser()
     for key, value in sorted(defaults.items(), key=lambda x: x[0]):
         arg_type = tools.args_type(value)
         parser.add_argument(f'--{key}', type=arg_type, default=arg_type(value))
     configs = parser.parse_args(remaining)
+
+    exp_name = configs.exp_name + '_'
+
     
     tz = pytz.timezone("US/Central")
     now = datetime.now(tz)

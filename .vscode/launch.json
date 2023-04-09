@@ -20,7 +20,8 @@
             "console": "integratedTerminal",
             "justMyCode": true, 
             "args": [
-                "--configs", "defaults",  "mmnist"
+                "--configs", "defaults",  "mmnist",
+                "--exp_name", "3level"
             ]
         }
     ]
