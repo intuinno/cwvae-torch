@@ -1,7 +1,7 @@
 defaults:
 
   # MODEL
-  device: 'cuda:0'
+  device: 'cpu'
   exp_name: 'defaults'
   levels: 3
   tmp_abs_factor: 6

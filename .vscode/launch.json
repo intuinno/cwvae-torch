@@ -23,6 +23,18 @@
                 "--configs", "defaults",  "mmnist",
                 "--exp_name", "3level"
             ]
+        },
+        {
+            "name": "mmnist-discrete",
+            "type": "python", 
+            "request": "launch", 
+            "program": "${workspaceFolder}/train.py",
+            "console": "integratedTerminal",
+            "justMyCode": true, 
+            "args": [
+                "--configs", "defaults",  "mmnist_debug2",
+                "--exp_name", "3level"
+            ]
         }
     ]
 }

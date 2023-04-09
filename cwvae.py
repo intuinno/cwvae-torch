@@ -78,6 +78,7 @@ class CWVAE(nn.Module):
         self.device = configs.device
         self._levels = configs.levels
         self._tmp_abs_factor = configs.tmp_abs_factor
+        self._discrete = configs.dyn_discrete
         
     def hierarchical_observe(
         self, inputs, actions=None, initial_state=None
@@ -107,7 +108,11 @@ class CWVAE(nn.Module):
             kl_value_list.append(kl_value)
 
             # Build context for lower layer
-            context = torch.concat([post['deter'], post['stoch']], dim=-1)
+            if self._discrete:
+                stoch = einops.rearrange(post['stoch'], 'b t d f -> b t (d f)')
+            else:
+                stoch = post['stoch']
+            context = torch.concat([post['deter'], stoch], dim=-1)
             context = einops.repeat(context, 'b t f -> b (t repeat) f', repeat=self._tmp_abs_factor)
 
         # Get features for bottom layer
@@ -127,8 +132,11 @@ class CWVAE(nn.Module):
             empty_action = torch.empty(batch_size, int(num_steps),0).to(self.device)
             prior = self.dynamics[level].imagine(context, empty_action, initial_state[level])
 
-            # Build context for lower layer
-            context = torch.concat([prior['deter'], prior['stoch']], dim=-1)
+            if self._discrete:
+                stoch = einops.rearrange(prior['stoch'], 'b t d f -> b t (d f)')
+            else:
+                stoch = prior['stoch']
+            context = torch.concat([prior['deter'], stoch], dim=-1) 
             context = einops.repeat(context, 'b t f -> b (t repeat) f', repeat=self._tmp_abs_factor)
 
         # Get features for bottom layer
