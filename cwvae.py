@@ -172,7 +172,7 @@ class CWVAE(nn.Module):
             with torch.cuda.amp.autocast(self._use_amp):
                 obs = self.preprocess(obs)
                 embed = self.encoder(obs)
-                posteriors, priors, kl_losses, kl_values, feat = self.hierarchical_unroll(embed)
+                posteriors, priors, kl_losses, kl_values, feat = self.hierarchical_observe(embed)
                 #Calulate reconstruction loss
                 pred_obs = self.decoder(feat)
                 nll = -pred_obs.log_prob(obs)
