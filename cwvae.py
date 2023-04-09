@@ -3,6 +3,7 @@ import torch
 import networks
 import tools
 import numpy as np
+import einops
 
 to_np = lambda x: x.detach().cpu().numpy()
 
@@ -15,36 +16,43 @@ class CWVAE(nn.Module):
         super(CWVAE, self).__init__()
         self.step = 0
         self._use_amp = True if configs.precision==16 else False
-        self.encoder = networks.ConvEncoder(channels=configs.channels, 
-                                            depth=configs.cnn_depth,
-                                            act=getattr(nn,configs.act),
-                                            kernels=configs.encoder_kernels)
+        self.encoder = networks.HierarchicalEncoder(configs.levels,
+                                                    configs.tmp_abs_factor,
+                                                    configs.enc_dense_layers,
+                                                    hidden_size=configs.enc_dense_hidden_size,
+                                                    channels=configs.channels, 
+                                                    depth=configs.cnn_depth,
+                                                    act=configs.act,
+                                                    kernels=configs.encoder_kernels,
+                                                    input_size=configs.img_size)
 
-        shape = (*configs.img_size, configs.channels)
-        # Get the output embedding size of ConvEncoder by testing it
-        testObs = torch.rand(1, 1, *shape) 
-        embed_size = self.encoder(testObs).shape[-1]
+        embed_size = self.encoder.embed_size 
         self.configs = configs
+
+        self.dynamics = nn.ModuleList()
+        self.dense_encoders = nn.ModuleList()
+
         
-        self.dynamics = networks.RSSM(
-            stoch=configs.cell_stoch_size,
-            deter=configs.cell_deter_size,
-            hidden=configs.cell_deter_size,
-            layers_input=configs.dyn_input_layers,
-            layers_output=configs.dyn_output_layers,
-            rec_depth=configs.dyn_rec_depth,
-            shared=configs.dyn_shared, 
-            discrete=configs.dyn_discrete,
-            act=getattr(nn, configs.act),
-            mean_act=configs.dyn_mean_act,
-            std_act=configs.dyn_std_act,
-            temp_post=configs.dyn_temp_post,
-            min_std=configs.cell_min_stddev,
-            cell=configs.dyn_cell,
-            num_actions=0,
-            embed=embed_size,
-            device=configs.device
-        )
+        for i in range(configs.levels):
+            dynamic = networks.RSSM(
+                stoch=configs.cell_stoch_size,
+                deter=configs.cell_deter_size,
+                hidden=configs.cell_deter_size,
+                layers_input=configs.dyn_input_layers,
+                layers_output=configs.dyn_output_layers,
+                discrete=configs.dyn_discrete,
+                act=getattr(nn, configs.act),
+                mean_act=configs.dyn_mean_act,
+                std_act=configs.dyn_std_act,
+                min_std=configs.cell_min_stddev,
+                cell=configs.dyn_cell,
+                num_actions=0,
+                embed=embed_size,
+                device=configs.device
+            )
+            self.dynamics.append(dynamic)
+
+            
         if configs.dyn_discrete:
             feat_size = configs.cell_stoch_size * configs.dyn_discrete + configs.cell_deter_size
         else:
@@ -68,62 +76,86 @@ class CWVAE(nn.Module):
             use_amp=self._use_amp
         )
         self.device = configs.device
+        self._levels = configs.levels
+        self._tmp_abs_factor = configs.tmp_abs_factor
         
-    def train(self, obs):
-        # obs = self.preprocess(obs)
+    def hierarchical_observe(
+        self, inputs, actions=None, initial_state=None
+    ):
+        b, t, f = inputs[0].shape
         
-        
-        with tools.RequiresGrad(self):
-            with torch.cuda.amp.autocast(self._use_amp):
-                obs = self.preprocess(obs)
-                embed = self.encoder(obs)
-                b, t, f = embed.shape
-                empty_action = torch.empty(b, t, 0).to(self.device)
-                post, prior = self.dynamics.observe(embed, empty_action)
-                kl_balance = tools.schedule(self.configs.kl_balance, self.step)
-                kl_free = tools.schedule(self.configs.kl_free, self.step)
-                kl_scale = tools.schedule(self.configs.kl_scale, self.step)
-                kl_loss, kl_value = self.dynamics.kl_loss(
-                    post, prior, self.configs.kl_forward, kl_balance, kl_free, kl_scale)
-                feat = self.dynamics.get_feat(post)
-                pred_obs = self.decoder(feat)
-                nll = -pred_obs.log_prob(obs)
-                recon_loss = nll.mean()
-                loss = kl_loss + recon_loss
-            metrics = self.opt(loss, self.parameters())
+        if actions==None:
+            empty_action = torch.empty(b, t, 0).to(self.device)
+            actions = empty_action 
             
-        metrics['kl_balance'] = kl_balance
-        metrics['kl_free'] = kl_free
-        metrics['kl_scale'] = kl_scale
-        metrics['kl'] = to_np(torch.mean(kl_value))
-        
-        with torch.cuda.amp.autocast(self._use_amp):
-            metrics['prior_ent'] = to_np(torch.mean(self.dynamics.get_dist(prior).entropy()))
-            metrics['posterior_ent'] = to_np(torch.mean(self.dynamics.get_dist(post).entropy()))
-            context = dict(
-                embed=embed,
-                feat=self.dynamics.get_feat(post),
-                kl=kl_value,
-                postent=self.dynamics.get_dist(post).entropy()
-            )
-        post = {k: v.detach() for k, v in post.items()}
-        return post, context, metrics
+        context = None # None for top level
+        kl_balance = tools.schedule(self.configs.kl_balance, self.step)
+        kl_free = tools.schedule(self.configs.kl_free, self.step)
+        kl_scale = tools.schedule(self.configs.kl_scale, self.step)
+        prior_list, posterior_list = [], []
+        kl_loss_list, kl_value_list = [], []
+        kl_losses = 0
+
+        for level in reversed(range(self._levels)):
+            post, prior = self.dynamics[level].observe(inputs[level], context, actions)
+            kl_loss, kl_value = self.dynamics[level].kl_loss(
+                post, prior, self.configs.kl_forward, kl_balance, kl_free, kl_scale)
+            prior_list.insert(0, prior)
+            posterior_list.insert(0, post)
+            kl_loss_list.append(kl_loss)
+            kl_losses += kl_loss
+            kl_value_list.append(kl_value)
+
+            # Build context for lower layer
+            context = torch.concat([post['deter'], post['stoch']], dim=-1)
+            context = einops.repeat(context, 'b t f -> b (t repeat) f', repeat=self._tmp_abs_factor)
+
+        # Get features for bottom layer
+        feat = self.dynamics[0].get_feat(post)
+            
+        return posterior_list, prior_list, kl_losses, kl_value_list, feat
+    
+    def hierarchical_imagine(
+        self, actions=None, initial_state=None
+    ):
+        assert len(actions.shape) > 2, "actions need to be [B T A] shape. It is used to calculate total imagine steps"
+        batch_size, num_imagine, _ = actions.shape
+        context = None # None for top level
+
+        for level in reversed(range(self._levels)):
+            num_steps = np.ceil(float(num_imagine)/(self._tmp_abs_factor**level))
+            empty_action = torch.empty(batch_size, int(num_steps),0).to(self.device)
+            prior = self.dynamics[level].imagine(context, empty_action, initial_state[level])
+
+            # Build context for lower layer
+            context = torch.concat([prior['deter'], prior['stoch']], dim=-1)
+            context = einops.repeat(context, 'b t f -> b (t repeat) f', repeat=self._tmp_abs_factor)
+
+        # Get features for bottom layer
+        feat = self.dynamics[0].get_feat(prior)
+            
+        return feat
+
         
     def video_pred(self, data):
         b, t, c, w, h = data.shape
-        num_initial = 20
+        num_initial = self._tmp_abs_factor ** (self._levels-1)
+        num_imagine = t - num_initial
         num_gifs = 6
         data = self.preprocess(data)
         truth = data[:num_gifs] + 0.5 
-        embed = self.encoder(data)
-        empty_action = torch.empty(b, t, 0).to(self.device)
-        
-        post, _ = self.dynamics.observe(embed[:, :num_initial], empty_action[:,:num_initial])
-        initial_decode = self.decoder(self.dynamics.get_feat(post)).mode()[:num_gifs]
-        init = {k: v[:,-1] for k, v in post.items()}
-        prior = self.dynamics.imagine(empty_action[:, num_initial:], init)
-        
-        feat = self.dynamics.get_feat(prior)
+        embed = self.encoder(data[:,:num_initial])
+        posteriors, _, _, _, feat = self.hierarchical_observe(embed) 
+         
+        initial_decode = self.decoder(feat).mode()[:num_gifs]
+
+        empty_action = torch.empty(b, num_imagine, 0).to(self.device)
+        init_states = []
+        for level in range(self._levels):
+            init = {k: v[:,-1] for k, v in posteriors[level].items()}
+            init_states.append(init)
+
+        feat = self.hierarchical_imagine(empty_action, initial_state=init_states)
         pred_obs = self.decoder(feat)
         nll = -pred_obs.log_prob(data[:, num_initial:])
         recon_loss = nll.mean()
@@ -133,6 +165,31 @@ class CWVAE(nn.Module):
         return_video = torch.cat([truth, model, diff], 2) 
         # return_video = (return_video * 255).to(dtype=torch.uint8)
         return to_np(return_video), recon_loss
+        
+    def train(self, obs):
+        
+        with tools.RequiresGrad(self):
+            with torch.cuda.amp.autocast(self._use_amp):
+                obs = self.preprocess(obs)
+                embed = self.encoder(obs)
+                posteriors, priors, kl_losses, kl_values, feat = self.hierarchical_unroll(embed)
+                #Calulate reconstruction loss
+                pred_obs = self.decoder(feat)
+                nll = -pred_obs.log_prob(obs)
+                recon_loss = nll.mean()
+                
+                loss = kl_losses + recon_loss
+            metrics = self.opt(loss, self.parameters())
+
+        with torch.cuda.amp.autocast(self._use_amp):
+            for level in range(self._levels):
+                metrics[f'kl_{level}'] = to_np(torch.mean(kl_values[level]))
+                metrics[f'prior_ent_{level}'] = to_np(torch.mean(self.dynamics[level].get_dist(priors[level]).entropy()))
+                metrics[f'posterior_ent_{level}'] = to_np(torch.mean(self.dynamics[level].get_dist(posteriors[level]).entropy()))
+
+        return metrics
+        
+
         
     def preprocess(self, obs):
         # obs = obs.clone()

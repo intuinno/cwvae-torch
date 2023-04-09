@@ -7,15 +7,30 @@ from torch import distributions as torchd
 
 import tools
 import einops
+from typing import Union
+
+Activation = Union[str, nn.Module]
+
+
+_str_to_activation = {
+    'relu': nn.ReLU(),
+    'tanh': nn.Tanh(),
+    'leaky_relu': nn.LeakyReLU(),
+    'sigmoid': nn.Sigmoid(),
+    'selu': nn.SELU(),
+    'softplus': nn.Softplus(),
+    'identity': nn.Identity(),
+    'elu': nn.ELU()
+}
+
 
 class RSSM(nn.Module):
 
   def __init__(
       self, stoch=30, deter=200, hidden=200, layers_input=1, layers_output=1,
-      rec_depth=1, shared=False, discrete=False, act=nn.ELU,
-      mean_act='none', std_act='softplus', temp_post=True, min_std=0.1,
-      cell='gru',
-      num_actions=None, embed = None, device=None):
+      discrete=False, act=nn.ELU,
+      mean_act='none', std_act='softplus', min_std=0.1,
+      cell='gru', num_actions=None, embed=None, device=None):
     super(RSSM, self).__init__()
     self._stoch = stoch
     self._deter = deter
@@ -23,23 +38,23 @@ class RSSM(nn.Module):
     self._min_std = min_std
     self._layers_input = layers_input
     self._layers_output = layers_output
-    self._rec_depth = rec_depth
-    self._shared = shared
     self._discrete = discrete
     self._act = act
     self._mean_act = mean_act
     self._std_act = std_act
-    self._temp_post = temp_post
     self._embed = embed
     self._device = device
 
     inp_layers = []
+
     if self._discrete:
-      inp_dim = self._stoch * self._discrete + num_actions
+      stoch_dim = self._stoch * self._discrete
     else:
-      inp_dim = self._stoch + num_actions
-    if self._shared:
-      inp_dim += self._embed
+      stoch_dim = self._stoch
+    self.state_size = self._deter + stoch_dim
+    
+    inp_dim = stoch_dim + self.state_size + num_actions
+
     for i in range(self._layers_input):
       inp_layers.append(nn.Linear(inp_dim, self._hidden))
       inp_layers.append(self._act())
@@ -64,10 +79,7 @@ class RSSM(nn.Module):
     self._img_out_layers = nn.Sequential(*img_out_layers)
 
     obs_out_layers = []
-    if self._temp_post:
-      inp_dim = self._deter + self._embed
-    else:
-      inp_dim = self._embed
+    inp_dim = self._deter + self._embed
     for i in range(self._layers_output):
       obs_out_layers.append(nn.Linear(inp_dim, self._hidden))
       obs_out_layers.append(self._act())
@@ -97,27 +109,49 @@ class RSSM(nn.Module):
           deter=deter)
     return state
 
-  def observe(self, embed, action, state=None):
-    swap = lambda x: x.permute([1, 0] + list(range(2, len(x.shape))))
+  def initial_context(self, batch_size, seq_len):
+    context = torch.zeros(batch_size, seq_len, self.state_size).to(self._device)
+    return context
+
+  def observe(self, embed, context, action, state=None):
+    B, T, F = embed.shape
+    swap = lambda x: einops.rearrange(x, 'B T F -> T B F')
+
     if state is None:
-      state = self.initial(action.shape[0])
-    embed, action = swap(embed), swap(action)
+      state = self.initial(B)
+    if context is None:
+      context = self.initial_context(B, T)
+    else:
+      # Context was repeated in the above layer and does not match timestep for this layer
+      # Trim context to match the embedding 
+      context = context[:, :T, :]
+    embed, action, context = swap(embed), swap(action), swap(context)
     post, prior = tools.static_scan(
-        lambda prev_state, prev_act, embed: self.obs_step(
-            prev_state[0], prev_act, embed),
-        (action, embed), (state, state))
+        lambda prev_state, context, prev_act, embed: self.obs_step(
+            prev_state[0], context, prev_act, embed),
+        (context, action, embed), (state, state))
     post = {k: swap(v) for k, v in post.items()}
     prior = {k: swap(v) for k, v in prior.items()}
     return post, prior
 
-  def imagine(self, action, state=None):
-    swap = lambda x: x.permute([1, 0] + list(range(2, len(x.shape))))
+  def imagine(self, context, action, state=None):
+    B, T, F = action.shape
+    swap = lambda x: einops.rearrange(x, 'B T F -> T B F')
+
     if state is None:
-      state = self.initial(action.shape[0])
+      state = self.initial(B)
+    if context is None:
+      context = self.initial_context(B, T)
+    else:
+      # Context was repeated in the above layer and does not match timestep for this layer
+      # Trim context to match the embedding 
+      context = context[:, :T, :] 
     assert isinstance(state, dict), state
-    action = action
-    action = swap(action)
-    prior = tools.static_scan(self.img_step, [action], state)
+    action, context = swap(action), swap(context)
+    prior = tools.static_scan(
+      lambda prev_state, context, prev_act: self.img_step(
+        prev_state, context, prev_act),
+      (context, action),  state)
     prior = prior[0]
     prior = {k: swap(v) for k, v in prior.items()}
     return prior
@@ -139,41 +173,28 @@ class RSSM(nn.Module):
           torchd.normal.Normal(mean, std), 1))
     return dist
 
-  def obs_step(self, prev_state, prev_action, embed, sample=True):
-    prior = self.img_step(prev_state, prev_action, None, sample)
-    if self._shared:
-      post = self.img_step(prev_state, prev_action, embed, sample)
+  def obs_step(self, prev_state, context, prev_action, embed, sample=True):
+    prior = self.img_step(prev_state, context, prev_action, None, sample)
+    x = torch.cat([prior['deter'], embed], -1)
+    x = self._obs_out_layers(x)
+    stats = self._suff_stats_layer('obs', x)
+    if sample:
+      stoch = self.get_dist(stats).sample()
     else:
-      if self._temp_post:
-        x = torch.cat([prior['deter'], embed], -1)
-      else:
-        x = embed
-      x = self._obs_out_layers(x)
-      stats = self._suff_stats_layer('obs', x)
-      if sample:
-        stoch = self.get_dist(stats).sample()
-      else:
-        stoch = self.get_dist(stats).mode()
-      post = {'stoch': stoch, 'deter': prior['deter'], **stats}
+      stoch = self.get_dist(stats).mode()
+    post = {'stoch': stoch, 'deter': prior['deter'], **stats}
     return post, prior
 
-  def img_step(self, prev_state, prev_action, embed=None, sample=True):
+  def img_step(self, prev_state, context, prev_action, embed=None, sample=True):
     prev_stoch = prev_state['stoch']
     if self._discrete:
-      shape = list(prev_stoch.shape[:-2]) + [self._stoch * self._discrete]
-      prev_stoch = prev_stoch.reshape(shape)
-    if self._shared:
-      if embed is None:
-        shape = list(prev_action.shape[:-1]) + [self._embed]
-        embed = torch.zeros(shape)
-      x = torch.cat([prev_stoch, prev_action, embed], -1)
-    else:
-      x = torch.cat([prev_stoch, prev_action], -1)
+      prev_stoch = einops.rearrange(prev_stoch, 'b d f -> b (d f)')
+
+    x = torch.cat([prev_stoch, context, prev_action], -1)
     x = self._inp_layers(x)
-    for _ in range(self._rec_depth): # rec depth is not correctly implemented
-      deter = prev_state['deter']
-      x, deter = self._cell(x, [deter])
-      deter = deter[0]  # Keras wraps the state in a list.
+    deter = prev_state['deter']
+    x, deter = self._cell(x, [deter])
+    deter = deter[0]  # Keras wraps the state in a list.
     x = self._img_out_layers(x)
     stats = self._suff_stats_layer('ims', x)
     if sample:
@@ -235,6 +256,97 @@ class RSSM(nn.Module):
     loss *= scale
     return loss, value
 
+
+"""
+    Multi-level Video Encoder.
+    1. Extracts hierarchical features from a sequence of observations.
+    2. Encodes observations using Conv layers, uses them directly for the bottom-most level.
+    3. Uses dense features for each level of the hierarchy above the bottom-most level.
+"""
+  
+class HierarchicalEncoder(nn.Module):
+
+  def __init__(self, levels, tmp_abs_factor, dense_layers=3,
+    hidden_size=100, channels_mult=1, channels=3, input_size=(64, 64), depth=32,
+    act=nn.ReLU, kernels=(4, 4, 4, 4)):
+    """
+      Arguments:
+          levels : int
+              Number of levels in the hierarchy
+          tmp_abs_factor : int
+              Temporal abstraction factor used at each level
+          dense_layers : int
+              Number of dense hidden layers at each level
+          hidden_size : int
+              Size of dense hidden embeddings
+          channels_mult: int
+              Multiplier for the number of channels in the conv encoder
+    """
+    super(HierarchicalEncoder, self).__init__()
+    self._levels = levels
+    self._tmp_abs_factor = tmp_abs_factor
+    self._dense_layers = dense_layers
+    self._channels_mult = channels_mult
+    self._activation = act
+    self._kwargs = dict(strides=2, activation=self._activation, use_bias=True)
+ 
+    assert levels >= 1, "levels should be >=1, found {}".format(levels)
+    assert tmp_abs_factor >= 1, "tmp_abs_factor should be >=1, found {}".format(
+        tmp_abs_factor
+    )
+    assert (
+        not dense_layers or hidden_size
+    ), "embed_size={} invalid for Dense layer".format(embed_size)
+
+    self.conv_encoder = ConvEncoder(channels=channels,
+                               depth=depth,
+                               act=getattr(nn,act),
+                               kernels=kernels)
+    shape = (*input_size, channels)
+    # Get the output embedding size of ConvEncoder by testing it
+    testObs = torch.rand(1, 1, *shape) 
+    embed_size = self.conv_encoder(testObs).shape[-1]
+    self.fc_encoders = nn.ModuleList()
+    self.embed_size = embed_size
+    
+    for i in range(1, levels):
+      encoder = build_mlp(embed_size,
+                          embed_size, 
+                          dense_layers,
+                          hidden_size,
+                          act)
+      self.fc_encoders.append(encoder)
+  
+  def __call__(self, obs):
+    """
+        Arguments:
+            obs : Tensor
+                Un-flattened observations (videos) of shape (batch size, timesteps, width, height, channel)
+    """
+    outputs = []
+    conv_embedding = self.conv_encoder(obs)
+    outputs.append(conv_embedding)
+    
+    for level in range(self._levels-1):
+      embedding = self.fc_encoders[level](conv_embedding)
+
+      # embedding is [B, T, F] dimension
+      # To reduce with _tmp_abs_factor^level, we need to pad T dimension of embedding
+      # such that it is divisible with timesteps_to_merge
+      timesteps_to_merge = np.power(self._tmp_abs_factor, level+1)
+      timesteps_to_pad = np.mod(
+        timesteps_to_merge - np.mod(embedding.shape[1], timesteps_to_merge),
+        timesteps_to_merge
+      )
+      pad = (0, 0, 0, timesteps_to_pad, 0, 0)
+      embedding = F.pad(embedding, pad, "constant", 0)
+      embedding = einops.reduce(embedding, 'b (t t2) f -> b t f', 'sum', t2=timesteps_to_merge)
+      outputs.append(embedding)
+    return outputs
+    
+        
+
+    
 
 class ConvEncoder(nn.Module):
 
@@ -472,3 +584,50 @@ class GRUCell(nn.Module):
     update = torch.sigmoid(update + self._update_bias)
     output = update * cand + (1 - update) * state
     return output, [output]
+
+def build_mlp(
+        input_size: int,
+        output_size: int,
+        n_layers: int,
+        hidden_size: int,
+        activation: Activation = 'tanh',
+        output_activation: Activation = 'identity',
+) -> nn.Module:
+    """
+        Builds a feedforward neural network
+
+        arguments:
+            n_layers: number of hidden layers
+            size: dimension of each hidden layer
+            activation: activation of each hidden layer
+
+            input_size: size of the input layer
+            output_size: size of the output layer
+            output_activation: activation of the output layer
+
+        returns:
+            MLP (nn.Module)
+    """
+    if isinstance(activation, str):
+        activation = _str_to_activation[activation.lower()]
+    if isinstance(output_activation, str):
+        output_activation = _str_to_activation[output_activation]
+
+    # TODO: return a MLP. This should be an instance of nn.Module
+    # Note: nn.Sequential is an instance of nn.Module.
+    layers = []
+    assert n_layers >= 0, f"Num layers should be larger than or equal to zero"
+    assert isinstance(n_layers, int), f"Num layers should be integer" 
+    if n_layers == 0:
+      layers.append(nn.Linear(input_size, output_size))
+    else:
+      layers.append(nn.Linear(input_size, hidden_size))
+      for i in range(n_layers):
+        layers.append(activation)
+        if i == n_layers - 1:
+            out = output_size
+        else:
+            out = hidden_size
+        layers.append(nn.Linear(hidden_size, out))
+    layers.append(output_activation)
+    return nn.Sequential(*layers)

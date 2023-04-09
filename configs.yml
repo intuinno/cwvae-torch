@@ -1,13 +1,13 @@
 defaults:
 
   # MODEL
-  device: 'cuda:0'
+  device: 'cpu'
   levels: 3
   tmp_abs_factor: 6
   dec_stddev: null
   model_dir_prefix: null
   enc_dense_layers: 3
-  enc_dense_embed_size: 1000
+  enc_dense_hidden_size: 1000
   cell_type: RSSMCell
   cell_stoch_size: null
   cell_deter_size: null
@@ -67,7 +67,7 @@ mmnist:
   img_size: [64, 64]
   tmp_abs_factor: 6
   dec_stddev: 1.0
-  enc_dense_embed_size: 1000
+  enc_dense_hidden_size: 1000
   cell_type: RSSMCell
   cell_stoch_size: 20
   cell_deter_size: 200
@@ -80,7 +80,7 @@ mmnist:
   seq_len: 100
   eval_seq_len: 1000
   channels: 1
-  cnn_depth: 4
+  cnn_depth: 32
   encoder_kernels: [4, 4, 4, 4]
   decoder_kernels: [5, 5, 6, 6]
   decoder_thin: True

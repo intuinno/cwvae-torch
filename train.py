@@ -14,6 +14,7 @@ from data_loader import *
 import tools
 from cwvae import CWVAE
 from datetime import datetime
+import pytz
 
 
 # device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -41,7 +42,8 @@ if __name__ == "__main__":
         parser.add_argument(f'--{key}', type=arg_type, default=arg_type(value))
     configs = parser.parse_args(remaining)
     
-    now = datetime.now()
+    tz = pytz.timezone("US/Central")
+    now = datetime.now(tz)
     date_time = now.strftime("%Y%m%d_%H%M%S")
     exp_name += date_time
     
@@ -67,9 +69,9 @@ if __name__ == "__main__":
 
     for epoch in range(configs.num_epochs):
             
-        # Write evaluation summary
+        #Write evaluation summary
         print(f'======== Epoch {epoch} / {configs.num_epochs} ==========')
-        now = datetime.now()
+        now = datetime.now(tz)
         current_time = now.strftime("%H:%M:%S")
         print("Current Time =", current_time)
         print (f"Evaluating ... ") 
@@ -84,7 +86,7 @@ if __name__ == "__main__":
         print(f"Training ...")
         for i, x in enumerate(tqdm(train_dataloader)):
             x = x.to(configs.device)
-            post, context, met = model.train(x)
+            met = model.train(x)
             for name, values in met.items():
                 if not name in metrics.keys():
                     metrics[name] = [values]
@@ -102,72 +104,5 @@ if __name__ == "__main__":
         # Save Check point
         if epoch % configs.save_model_every == 0:
             torch.save(model.state_dict(), exp_logdir / 'latest_model.pt')
-            
-          
-            
-        
-
-    # Build model.
-    model_components = build_model(cfg)
-    model = model_components["meta"]["model"]
-
-    # Setting up training.
-    apply_grads, grad_norm, session, step = train_setup(cfg, model.loss)
-
-    # Define summaries.
-    summary = Summary(exp_rootdir, save_gifs=cfg.save_gifs)
-    summary.build_summary(cfg, model_components, grad_norm=grad_norm)
-
-    # Define checkpoint saver for variables currently in session.
-    checkpoint = Checkpoint(exp_rootdir)
-
-    # Restore model (if exists).
-    if os.path.exists(checkpoint.log_dir_model):
-        print("Restoring model from {}".format(checkpoint.log_dir_model))
-        checkpoint.restore(session)
-        print("Will start training from step {}".format(step()))
-    else:
-        # Initialize all variables.
-        session.run(tf.global_variables_initializer())
-
-    # Start training.
-    print("Getting validation batches.")
-    val_batches = get_multiple_batches(val_data_batch, cfg.num_val_batches, session)
-    print("Training.")
-    while True:
-        try:
-            train_batch = get_single_batch(train_data_batch, session)
-            feed_dict_train = {model_components["training"]["obs"]: train_batch}
-            feed_dict_val = {model_components["training"]["obs"]: val_batches}
-
-            # Train one step.
-            session.run(fetches=apply_grads, feed_dict=feed_dict_train)
-
-            # Saving scalar summaries.
-            if step() % cfg.save_scalars_every == 0:
-                summaries = session.run(
-                    summary.scalar_summary, feed_dict=feed_dict_train
-                )
-                summary.save(summaries, step(), True)
-                summaries = session.run(summary.scalar_summary, feed_dict=feed_dict_val)
-                summary.save(summaries, step(), False)
-
-            # Saving gif summaries.
-            if step() % cfg.save_gifs_every == 0:
-                summaries = session.run(summary.gif_summary, feed_dict=feed_dict_train)
-                summary.save(summaries, step(), True)
-                summaries = session.run(summary.gif_summary, feed_dict=feed_dict_val)
-                summary.save(summaries, step(), False)
-
-            # Saving model.
-            if step() % cfg.save_model_every == 0:
-                checkpoint.save(session)
-
-            if cfg.save_named_model_every and step() % cfg.save_named_model_every == 0:
-                checkpoint.save(session, save_dir="model_{}".format(step()))
-
-            step.increment()
-        except tf.errors.OutOfRangeError:
-            break
 
     print("Training complete.")
