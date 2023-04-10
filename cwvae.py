@@ -9,13 +9,59 @@ to_np = lambda x: x.detach().cpu().numpy()
 
 # device = "cuda" if torch.cuda.is_available() else "cpu"
 
-
 class CWVAE(nn.Module):
     
     def __init__(self, configs):
         super(CWVAE, self).__init__()
         self.step = 0
         self._use_amp = True if configs.precision==16 else False
+        self.layers = nn.ModuleList()
+        
+        if configs.dyn_discrete:
+            feat_size = configs.cell_stoch_size * configs.dyn_discrete + configs.cell_deter_size
+        else:
+            feat_size = configs.cell_stoch_size + configs.cell_deter_size
+        
+        for level in range(configs.levels):
+            layer = nn.ModuleDict()
+            layer['dynamics'] = networks.RSSM(
+                stoch=configs.cell_stoch_size,
+                deter=configs.cell_deter_size,
+                hidden=configs.cell_deter_size,
+                layers_input=configs.dyn_input_layers,
+                layers_output=configs.dyn_output_layers,
+                discrete=configs.dyn_discrete,
+                act=getattr(nn, configs.act),
+                mean_act=configs.dyn_mean_act,
+                std_act=configs.dyn_std_act,
+                min_std=configs.cell_min_stddev,
+                cell=configs.dyn_cell,
+                num_actions=0,
+                embed=embed_size,
+                device=configs.device
+            )
+            
+            if level == 0:
+                layer['encoder'] = networks.ConvEncoder(
+                    channels=configs.channels,
+                    depth=configs.cnn_depth,
+                    act=getattr(nn,configs.act),
+                    kernels=configs.encoder_kernels
+                )
+                layer['decoder'] = networks.ConvDecoder(
+                    feat_size, 
+                    depth=configs.cnn_depth,
+                    act=getattr(nn, configs.act),
+                    shape=(configs.channels, *configs.img_size),
+                    kernels=configs.decoder_kernels,
+                    thin=configs.decoder_thin
+                ) 
+            else:
+                layer['encoder'] = networks.Conv3dEncoder()
+                layer['decoder'] = networks.Conv3dDecoder()
+            
+            
+            
         self.encoder = networks.HierarchicalEncoder(configs.levels,
                                                     configs.tmp_abs_factor,
                                                     configs.enc_dense_layers,
@@ -53,10 +99,7 @@ class CWVAE(nn.Module):
             self.dynamics.append(dynamic)
 
             
-        if configs.dyn_discrete:
-            feat_size = configs.cell_stoch_size * configs.dyn_discrete + configs.cell_deter_size
-        else:
-            feat_size = configs.cell_stoch_size + configs.cell_deter_size
+
         self.decoder = networks.ConvDecoder(
             feat_size,
             depth=configs.cnn_depth,
@@ -206,4 +249,4 @@ class CWVAE(nn.Module):
         return obs
                 
         
-        
+

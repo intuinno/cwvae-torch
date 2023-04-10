@@ -15,12 +15,24 @@ import tools
 from cwvae import CWVAE
 from datetime import datetime
 import pytz
+from prettytable import PrettyTable
 
 
 # device = "cuda" if torch.cuda.is_available() else "cpu"
 # print(f"Using {device} device")
 
-
+def count_parameters(model):
+    table = PrettyTable(["Modules", "Parameters"])
+    total_params = 0
+    for name, parameter in model.named_parameters():
+        if not parameter.requires_grad: continue
+        params = parameter.numel()
+        table.add_row([name, params])
+        total_params+=params
+    print(table)
+    print(f"Total Trainable Params: {total_params}")
+    return total_params
+    
 
 
 if __name__ == "__main__":
@@ -62,6 +74,8 @@ if __name__ == "__main__":
 
     # Build model
     model = CWVAE(configs).to(configs.device)
+
+    count_parameters(model)
     print(f"========== Using {configs.device} device ===================")
 
     # Build logger
@@ -107,3 +121,5 @@ if __name__ == "__main__":
             torch.save(model.state_dict(), exp_logdir / 'latest_model.pt')
 
     print("Training complete.")
+
+

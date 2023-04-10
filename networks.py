@@ -365,8 +365,29 @@ class ConvEncoder(nn.Module):
   def __call__(self, obs):
     x = einops.rearrange(obs, 'b t h w c -> (b t) c h w')
     x = self.layers(x)
-    x = einops.rearrange(x, '(b t) c h w -> b t (c h w)', b=obs.shape[0])
+    x = einops.rearrange(x, '(b t) c h w -> b c t h w', b=obs.shape[0])
     return x  
+  
+class Conv3dEncoder(nn.Module):
+  
+  def __init__(self, channels=256, act=nn.ReLU):
+    super(Conv3dEncoder, self).__init__()
+    self._act = act
+    
+    layers = []
+    layers.append(nn.Conv3d(channels, channels, (2,1,1), 
+                            stride=(2,1,1)))
+    layers.append(nn.Conv3d(channels, channels, (2,1,1), 
+                            stride=(2,1,1)))
+    layers.append(act())
+    self.layers = nn.Sequential(*layers)
+  
+  def __call__(self, obs):
+    x = self.layers(obs)
+    return x
+    
+    
+    
 
 class ConvDecoder(nn.Module):
 
@@ -418,6 +439,25 @@ class ConvDecoder(nn.Module):
     return tools.ContDist(torchd.independent.Independent(
       torchd.normal.Normal(mean, 1), len(self._shape)))
 
+class Conv3dDecoder(nn.Module):
+  
+  def __init__(self, inp_dim=256, act=nn.ReLU, shape=(1, 64, 64)):
+    super(Conv3dDecoder, self).__init__()
+    cnnt_layers = []
+    cnnt_layers.append(nn.ConvTranspose3d(inp_dim, inp_dim, (2,1,1), stride=(2,1,1)))
+    cnnt_layers.append(nn.ConvTranspose3d(inp_dim, inp_dim, (2,1,1), stride=(2,1,1)))
+    self.cnnt_layers = nn.Sequential(*cnnt_layers)
+  
+  def __call__(self, features):
+    x = self.cnnt_layers(x)
+    mean = einops.rearrange(x, 'b c t h w -> b t c h w')
+    return tools.ContDist(torchd.independent.Independent(
+      torchd.normal.Normal(mean,1), len()
+    ))
+      
+  
+    
+    
 
 class DenseHead(nn.Module):
 
@@ -481,7 +521,6 @@ class ActionHead(nn.Module):
     self._action_disc = action_disc
     self._temp = temp() if callable(temp) else temp
     self._outscale = outscale
-
     pre_layers = []
     for index in range(self._layers):
       pre_layers.append(nn.Linear(inp_dim, self._units))
