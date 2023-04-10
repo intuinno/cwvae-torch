@@ -64,6 +64,7 @@ defaults:
 
 mmnist:
   # MODEL
+  exp_name: "continous"
   levels: 3
   img_size: [64, 64]
   tmp_abs_factor: 6

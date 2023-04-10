@@ -11,7 +11,6 @@ from typing import Union
 
 Activation = Union[str, nn.Module]
 
-
 _str_to_activation = {
     'relu': nn.ReLU(),
     'tanh': nn.Tanh(),
@@ -22,7 +21,6 @@ _str_to_activation = {
     'identity': nn.Identity(),
     'elu': nn.ELU()
 }
-
 
 class RSSM(nn.Module):
 
@@ -124,7 +122,7 @@ class RSSM(nn.Module):
     else:
       # Context was repeated in the above layer and does not match timestep for this layer
       # Trim context to match the embedding 
-      context = context[:, :T, :]
+      context = context[:, :T, :].detach()
     embed, action, context = swap(embed), swap(action), swap(context)
     post, prior = tools.static_scan(
         lambda prev_state, context, prev_act, embed: self.obs_step(
@@ -324,11 +322,11 @@ class HierarchicalEncoder(nn.Module):
                 Un-flattened observations (videos) of shape (batch size, timesteps, width, height, channel)
     """
     outputs = []
-    conv_embedding = self.conv_encoder(obs)
-    outputs.append(conv_embedding)
+    embedding = self.conv_encoder(obs)
+    outputs.append(embedding)
     
     for level in range(self._levels-1):
-      embedding = self.fc_encoders[level](conv_embedding)
+      embedding = self.fc_encoders[level](embedding.detach())
 
       # embedding is [B, T, F] dimension
       # To reduce with _tmp_abs_factor^level, we need to pad T dimension of embedding
@@ -343,10 +341,6 @@ class HierarchicalEncoder(nn.Module):
       embedding = einops.reduce(embedding, 'b (t t2) f -> b t f', 'sum', t2=timesteps_to_merge)
       outputs.append(embedding)
     return outputs
-    
-        
-
-    
 
 class ConvEncoder(nn.Module):
 
@@ -369,9 +363,9 @@ class ConvEncoder(nn.Module):
     self.layers = nn.Sequential(*layers)
 
   def __call__(self, obs):
-    x = einops.rearrange(obs, 'b t w h c -> (b t) c w h')
+    x = einops.rearrange(obs, 'b t h w c -> (b t) c h w')
     x = self.layers(x)
-    x = einops.rearrange(x, '(b t) c w h -> b t (c w h)', b=obs.shape[0])
+    x = einops.rearrange(x, '(b t) c h w -> b t (c h w)', b=obs.shape[0])
     return x  
 
 class ConvDecoder(nn.Module):
@@ -470,7 +464,6 @@ class DenseHead(nn.Module):
       return tools.Bernoulli(torchd.independent.Independent(
         torchd.bernoulli.Bernoulli(logits=mean), len(self._shape)))
     raise NotImplementedError(self._dist)
-
 
 class ActionHead(nn.Module):
 
