@@ -195,6 +195,6 @@ local_mmnist:
 
   # TRAINING
   lr: 0.0003
-  batch_size: 128
+  batch_size: 256
   num_epochs: 300
   
