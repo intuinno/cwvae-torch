@@ -242,6 +242,9 @@ class CWVAE(nn.Module):
                     recon_loss = nll.mean()
                     kl_loss = kl_losses[level]       
                     loss = kl_loss + recon_loss
+                    metrics[f'recon_loss_{level}'] = to_np(recon_loss)
+                    metrics[f'kl_loss_{level}'] = to_np(kl_loss)
+                    metrics[f'loss_{level}'] = to_np(loss)
                     metrics[f'grad_norm_{level}'] = self.optimizers[level](loss, self.layers[level].parameters())
                     metrics[f'kl_{level}'] = to_np(torch.mean(kl_values[level]))
                     metrics[f'prior_ent_{level}'] = to_np(torch.mean(self.layers[level]['dynamics'].get_dist(priors[level]).entropy()))

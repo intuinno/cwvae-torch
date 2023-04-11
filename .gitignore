@@ -1,6 +1,7 @@
 data/
 logs/
 *.zip
+*.pdf 
 
 
 # Byte-compiled / optimized / DLL files
