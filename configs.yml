@@ -171,11 +171,11 @@ local_mmnist:
   img_size: [64, 64]
   tmp_abs_factor: 4
   dec_stddev: 1.0
-  enc_dense_hidden_size: 1000
+  enc_dense_hidden_size: 500
   cell_type: RSSMCell
   cell_stoch_size: 32
-  cell_deter_size: 200
-  cell_embed_size: 200
+  cell_deter_size: 100
+  cell_embed_size: 100
   dyn_discrete: 0
 
   precision: 16
@@ -195,6 +195,6 @@ local_mmnist:
 
   # TRAINING
   lr: 0.0003
-  batch_size: 256
+  batch_size: 64
   num_epochs: 300
   
