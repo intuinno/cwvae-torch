@@ -210,7 +210,8 @@ class Optimizer():
         assert len(loss.shape) == 0, loss.shape
         metrics = {}
         metrics[f'{self._name}_loss'] = loss.detach().cpu().numpy()
-        self._scaler.scale(loss).backward()
+        torch.autograd.set_detect_anomaly(True)
+        self._scaler.scale(loss).backward(retain_graph=retain_graph)
         self._scaler.unscale_(self._opt)
         #loss.backward(retain_graph=retain_graph)
         norm = torch.nn.utils.clip_grad_norm_(params, self._clip)
@@ -220,8 +221,8 @@ class Optimizer():
         self._scaler.update()
         #self._opt.step()
         self._opt.zero_grad()
-        metrics[f'{self._name}_grad_norm'] = norm.item()
-        return metrics
+        # metrics[f'{self._name}_grad_norm'] = norm.item()
+        return norm.item()
 
     def _apply_weight_decay(self, varibs):
         nontrivial = (self._wd_pattern != r'.*')

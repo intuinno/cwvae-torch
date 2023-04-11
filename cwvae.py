@@ -4,6 +4,7 @@ import networks
 import tools
 import numpy as np
 import einops
+import torch.nn.functional as F
 
 to_np = lambda x: x.detach().cpu().numpy()
 
@@ -16,6 +17,7 @@ class CWVAE(nn.Module):
         self.step = 0
         self._use_amp = True if configs.precision==16 else False
         self.layers = nn.ModuleList()
+        self.optimizers = []
         
         if configs.dyn_discrete:
             feat_size = configs.cell_stoch_size * configs.dyn_discrete + configs.cell_deter_size
@@ -24,6 +26,34 @@ class CWVAE(nn.Module):
         
         for level in range(configs.levels):
             layer = nn.ModuleDict()
+            if level == 0:
+                layer['encoder'] = networks.ConvEncoder(
+                    channels=configs.channels,
+                    depth=configs.cnn_depth,
+                    act=getattr(nn,configs.act),
+                    kernels=configs.encoder_kernels
+                )
+                shape = (*configs.img_size, configs.channels)
+                # Get the output embedding size of ConvEncoder by testing it
+                testObs = torch.rand(1, 1, *shape) 
+                testEmbed = layer['encoder'](testObs)
+                
+                embed_shape = layer['encoder'](testObs).shape
+                _, C, _, H, W = embed_shape
+                embed_size = embed_shape.numel()
+                
+                layer['decoder'] = networks.ConvDecoder(
+                    feat_size, 
+                    depth=configs.cnn_depth,
+                    act=getattr(nn, configs.act),
+                    shape=(configs.channels, *configs.img_size),
+                    kernels=configs.decoder_kernels,
+                    thin=configs.decoder_thin
+                ) 
+            else:
+                layer['encoder'] = networks.Conv3dEncoder()
+                layer['decoder'] = networks.Conv3dDecoder(feat_size=feat_size,
+                                                          shape=(C, H, W))
             layer['dynamics'] = networks.RSSM(
                 stoch=configs.cell_stoch_size,
                 deter=configs.cell_deter_size,
@@ -40,93 +70,71 @@ class CWVAE(nn.Module):
                 embed=embed_size,
                 device=configs.device
             )
-            
-            if level == 0:
-                layer['encoder'] = networks.ConvEncoder(
-                    channels=configs.channels,
-                    depth=configs.cnn_depth,
-                    act=getattr(nn,configs.act),
-                    kernels=configs.encoder_kernels
-                )
-                layer['decoder'] = networks.ConvDecoder(
-                    feat_size, 
-                    depth=configs.cnn_depth,
-                    act=getattr(nn, configs.act),
-                    shape=(configs.channels, *configs.img_size),
-                    kernels=configs.decoder_kernels,
-                    thin=configs.decoder_thin
-                ) 
-            else:
-                layer['encoder'] = networks.Conv3dEncoder()
-                layer['decoder'] = networks.Conv3dDecoder()
-            
-            
-            
-        self.encoder = networks.HierarchicalEncoder(configs.levels,
-                                                    configs.tmp_abs_factor,
-                                                    configs.enc_dense_layers,
-                                                    hidden_size=configs.enc_dense_hidden_size,
-                                                    channels=configs.channels, 
-                                                    depth=configs.cnn_depth,
-                                                    act=configs.act,
-                                                    kernels=configs.encoder_kernels,
-                                                    input_size=configs.img_size)
-
-        embed_size = self.encoder.embed_size 
-        self.configs = configs
-
-        self.dynamics = nn.ModuleList()
-        self.dense_encoders = nn.ModuleList()
-
-        
-        for i in range(configs.levels):
-            dynamic = networks.RSSM(
-                stoch=configs.cell_stoch_size,
-                deter=configs.cell_deter_size,
-                hidden=configs.cell_deter_size,
-                layers_input=configs.dyn_input_layers,
-                layers_output=configs.dyn_output_layers,
-                discrete=configs.dyn_discrete,
-                act=getattr(nn, configs.act),
-                mean_act=configs.dyn_mean_act,
-                std_act=configs.dyn_std_act,
-                min_std=configs.cell_min_stddev,
-                cell=configs.dyn_cell,
-                num_actions=0,
-                embed=embed_size,
-                device=configs.device
+                
+            self.layers.append(layer)
+            opt = tools.Optimizer(
+                f'level_{level}',
+                layer.parameters(),
+                configs.lr, 
+                eps=configs.eps, 
+                clip=configs.clip_grad_norm_by,
+                wd=configs.weight_decay,
+                opt=configs.optimizer,
+                use_amp=self._use_amp
             )
-            self.dynamics.append(dynamic)
-
+            self.optimizers.append(opt)
             
-
-        self.decoder = networks.ConvDecoder(
-            feat_size,
-            depth=configs.cnn_depth,
-            act=getattr(nn,configs.act),
-            shape=(configs.channels, *configs.img_size),
-            kernels=configs.decoder_kernels,
-            thin=configs.decoder_thin
-        )
-        self.opt = tools.Optimizer(
-            'model',
-            self.parameters(),
-            configs.lr,
-            eps=configs.eps,
-            clip=configs.clip_grad_norm_by,
-            wd=configs.weight_decay,
-            opt=configs.optimizer,
-            use_amp=self._use_amp
-        )
+        self.configs = configs
         self.device = configs.device
         self._levels = configs.levels
         self._tmp_abs_factor = configs.tmp_abs_factor
         self._discrete = configs.dyn_discrete
         
+    def hierarchical_encode(self,
+                            obs):
+        """
+        Arguments:
+            obs : Tensor
+                Un-flattened observations (videos) of shape BTHWC (batch size, timesteps, height, width, channel)
+        Return:
+            List of Tensors
+                Each element is Un-flattened observations (videos) of shape BTHWC for 
+                (batch size, timesteps, height, width, channel ) 
+    """ 
+        outputs = []
+        recon_target = []
+
+        for level in range(self._levels):
+           
+            embedding = self.layers[level]['encoder'](obs)
+            out = einops.rearrange(embedding, 'b c t h w -> b t h w c')
+            outputs.append(out)
+            if level == 0:
+                target = obs
+            else:
+                target = einops.rearrange(obs.clone().detach(), 'b c t h w -> b t h w c')
+            recon_target.append(target)
+
+            # embedding is [B, C, T, H, W] dimension
+            # To reduce with _tmp_abs_factor^level, we need to pad T dimension of embedding
+            # such that it is divisible with timesteps_to_merge
+            timesteps_to_merge = self._tmp_abs_factor
+            timesteps_to_pad = np.mod(
+                timesteps_to_merge - np.mod(embedding.shape[2], timesteps_to_merge),
+                timesteps_to_merge
+            )
+            pad = (0, 0, 0, 0, 0, timesteps_to_pad, 0, 0, 0, 0)
+            embedding = F.pad(embedding, pad, "constant", 0)
+            obs = embedding.clone().detach().requires_grad_(False)
+            
+        recon_target
+
+        return outputs, recon_target
+        
     def hierarchical_observe(
         self, inputs, actions=None, initial_state=None
     ):
-        b, t, f = inputs[0].shape
+        b, t, h, w, c = inputs[0].shape
         
         if actions==None:
             empty_action = torch.empty(b, t, 0).to(self.device)
@@ -138,17 +146,19 @@ class CWVAE(nn.Module):
         kl_scale = tools.schedule(self.configs.kl_scale, self.step)
         prior_list, posterior_list = [], []
         kl_loss_list, kl_value_list = [], []
-        kl_losses = 0
+        feat_list = []
 
         for level in reversed(range(self._levels)):
-            post, prior = self.dynamics[level].observe(inputs[level], context, actions)
-            kl_loss, kl_value = self.dynamics[level].kl_loss(
+            inp = einops.rearrange(inputs[level], 'b t h w c -> b t (h w c)')
+            post, prior = self.layers[level]['dynamics'].observe(inp, context, actions)
+            kl_loss, kl_value = self.layers[level]['dynamics'].kl_loss(
                 post, prior, self.configs.kl_forward, kl_balance, kl_free, kl_scale)
             prior_list.insert(0, prior)
             posterior_list.insert(0, post)
-            kl_loss_list.append(kl_loss)
-            kl_losses += kl_loss
-            kl_value_list.append(kl_value)
+            kl_loss_list.insert(0, kl_loss)
+            kl_value_list.insert(0, kl_value)
+            feat = self.layers[level]['dynamics'].get_feat(post)
+            feat_list.insert(0, feat)
 
             # Build context for lower layer
             if self._discrete:
@@ -157,11 +167,9 @@ class CWVAE(nn.Module):
                 stoch = post['stoch']
             context = torch.concat([post['deter'], stoch], dim=-1)
             context = einops.repeat(context, 'b t f -> b (t repeat) f', repeat=self._tmp_abs_factor)
-
-        # Get features for bottom layer
-        feat = self.dynamics[0].get_feat(post)
+            context = context.clone().detach().requires_grad_(False)
             
-        return posterior_list, prior_list, kl_losses, kl_value_list, feat
+        return posterior_list, prior_list, kl_loss_list, kl_value_list, feat_list
     
     def hierarchical_imagine(
         self, actions=None, initial_state=None
@@ -173,7 +181,7 @@ class CWVAE(nn.Module):
         for level in reversed(range(self._levels)):
             num_steps = np.ceil(float(num_imagine)/(self._tmp_abs_factor**level))
             empty_action = torch.empty(batch_size, int(num_steps),0).to(self.device)
-            prior = self.dynamics[level].imagine(context, empty_action, initial_state[level])
+            prior = self.layers[level]['dynamics'].imagine(context, empty_action, initial_state[level])
 
             if self._discrete:
                 stoch = einops.rearrange(prior['stoch'], 'b t d f -> b t (d f)')
@@ -183,7 +191,7 @@ class CWVAE(nn.Module):
             context = einops.repeat(context, 'b t f -> b (t repeat) f', repeat=self._tmp_abs_factor)
 
         # Get features for bottom layer
-        feat = self.dynamics[0].get_feat(prior)
+        feat = self.layers[0]['dynamics'].get_feat(prior)
             
         return feat
 
@@ -195,10 +203,11 @@ class CWVAE(nn.Module):
         num_gifs = 6
         data = self.preprocess(data)
         truth = data[:num_gifs] + 0.5 
-        embed = self.encoder(data[:,:num_initial])
-        posteriors, _, _, _, feat = self.hierarchical_observe(embed) 
+        obs = data[:,:num_initial]
+        embed, _ = self.hierarchical_encode(obs)
+        posteriors, _, _, _, feats = self.hierarchical_observe(embed) 
          
-        initial_decode = self.decoder(feat).mode()[:num_gifs]
+        initial_decode = self.layers[0]['decoder'](feats[0]).mode()[:num_gifs]
 
         empty_action = torch.empty(b, num_imagine, 0).to(self.device)
         init_states = []
@@ -207,36 +216,36 @@ class CWVAE(nn.Module):
             init_states.append(init)
 
         feat = self.hierarchical_imagine(empty_action, initial_state=init_states)
-        pred_obs = self.decoder(feat)
+        pred_obs = self.layers[0]['decoder'](feat)
         nll = -pred_obs.log_prob(data[:, num_initial:])
         recon_loss = nll.mean()
-        openl = self.decoder(feat).mode()[:num_gifs]
+        openl = self.layers[0]['decoder'](feat).mode()[:num_gifs]
         model = torch.cat([initial_decode + 0.5,  openl + 0.5], 1)
         diff = (model - truth + 1) / 2
         return_video = torch.cat([truth, model, diff], 2) 
         # return_video = (return_video * 255).to(dtype=torch.uint8)
         return to_np(return_video), recon_loss
         
-    def train(self, obs):
+    def local_train(self, obs):
         
+        metrics = {}
         with tools.RequiresGrad(self):
             with torch.cuda.amp.autocast(self._use_amp):
                 obs = self.preprocess(obs)
-                embed = self.encoder(obs)
-                posteriors, priors, kl_losses, kl_values, feat = self.hierarchical_observe(embed)
-                #Calulate reconstruction loss
-                pred_obs = self.decoder(feat)
-                nll = -pred_obs.log_prob(obs)
-                recon_loss = nll.mean()
-                
-                loss = kl_losses + recon_loss
-            metrics = self.opt(loss, self.parameters())
+                embed, recon_target = self.hierarchical_encode(obs)
+                posteriors, priors, kl_losses, kl_values, feats = self.hierarchical_observe(embed)
 
-        with torch.cuda.amp.autocast(self._use_amp):
-            for level in range(self._levels):
-                metrics[f'kl_{level}'] = to_np(torch.mean(kl_values[level]))
-                metrics[f'prior_ent_{level}'] = to_np(torch.mean(self.dynamics[level].get_dist(priors[level]).entropy()))
-                metrics[f'posterior_ent_{level}'] = to_np(torch.mean(self.dynamics[level].get_dist(posteriors[level]).entropy()))
+                for level in range(self._levels):
+                    #Calulate reconstruction loss
+                    pred_obs = self.layers[level]['decoder'](feats[level])
+                    nll = -pred_obs.log_prob(recon_target[level])
+                    recon_loss = nll.mean()
+                    kl_loss = kl_losses[level]       
+                    loss = kl_loss + recon_loss
+                    metrics[f'grad_norm_{level}'] = self.optimizers[level](loss, self.layers[level].parameters())
+                    metrics[f'kl_{level}'] = to_np(torch.mean(kl_values[level]))
+                    metrics[f'prior_ent_{level}'] = to_np(torch.mean(self.layers[level]['dynamics'].get_dist(priors[level]).entropy()))
+                    metrics[f'posterior_ent_{level}'] = to_np(torch.mean(self.layers[level]['dynamics'].get_dist(posteriors[level]).entropy()))
 
         return metrics
         

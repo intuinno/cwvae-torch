@@ -122,7 +122,7 @@ class RSSM(nn.Module):
     else:
       # Context was repeated in the above layer and does not match timestep for this layer
       # Trim context to match the embedding 
-      context = context[:, :T, :].detach()
+      context = context[:, :T, :].clone().detach().requires_grad_(False)
     embed, action, context = swap(embed), swap(action), swap(context)
     post, prior = tools.static_scan(
         lambda prev_state, context, prev_act, embed: self.obs_step(
@@ -441,18 +441,23 @@ class ConvDecoder(nn.Module):
 
 class Conv3dDecoder(nn.Module):
   
-  def __init__(self, inp_dim=256, act=nn.ReLU, shape=(1, 64, 64)):
+  def __init__(self, shape=(256, 2, 2), feat_size=232, act=nn.ReLU):
     super(Conv3dDecoder, self).__init__()
+    self._shape = shape
+    self.channels, self.height, self.width = shape
     cnnt_layers = []
-    cnnt_layers.append(nn.ConvTranspose3d(inp_dim, inp_dim, (2,1,1), stride=(2,1,1)))
-    cnnt_layers.append(nn.ConvTranspose3d(inp_dim, inp_dim, (2,1,1), stride=(2,1,1)))
+    self.linear_layer = nn.Linear(feat_size, self.channels * self.width * self.height)
+    cnnt_layers.append(nn.ConvTranspose3d(self.channels, self.channels, (2,1,1), stride=(2,1,1)))
+    cnnt_layers.append(nn.ConvTranspose3d(self.channels, self.channels, (2,1,1), stride=(2,1,1)))
     self.cnnt_layers = nn.Sequential(*cnnt_layers)
   
   def __call__(self, features):
+    x = self.linear_layer(features)
+    x = einops.rearrange(x, 'b t (h w c) -> b c t h w', c=self.channels, h=self.height, w=self.width)
     x = self.cnnt_layers(x)
-    mean = einops.rearrange(x, 'b c t h w -> b t c h w')
+    mean = einops.rearrange(x, 'b c t h w -> b t h w c')
     return tools.ContDist(torchd.independent.Independent(
-      torchd.normal.Normal(mean,1), len()
+      torchd.normal.Normal(mean,1), len(self._shape)
     ))
       
   

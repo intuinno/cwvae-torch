@@ -35,6 +35,18 @@
                 "--configs", "defaults",  "mmnist_debug2",
                 "--exp_name", "3level"
             ]
+        },
+        {
+            "name": "local mmnist",
+            "type": "python", 
+            "request": "launch", 
+            "program": "${workspaceFolder}/train.py",
+            "console": "integratedTerminal",
+            "justMyCode": true, 
+            "args": [
+                "--configs", "defaults",  "local_mmnist",
+                "--exp_name", "local"
+            ]
         }
     ]
 }

@@ -74,7 +74,6 @@ if __name__ == "__main__":
 
     # Build model
     model = CWVAE(configs).to(configs.device)
-
     count_parameters(model)
     print(f"========== Using {configs.device} device ===================")
 
@@ -101,7 +100,7 @@ if __name__ == "__main__":
         print(f"Training ...")
         for i, x in enumerate(tqdm(train_dataloader)):
             x = x.to(configs.device)
-            met = model.train(x)
+            met = model.local_train(x)
             for name, values in met.items():
                 if not name in metrics.keys():
                     metrics[name] = [values]

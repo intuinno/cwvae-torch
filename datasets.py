@@ -121,9 +121,9 @@ References:
     def __getitem__(self, idx: int):
         video, audio, info, video_idx = self.video_clips.get_clip(idx)
         
-        video = einops.rearrange(video, 't w h c -> t c w h')
+        video = einops.rearrange(video, 't h w c -> t c h w')
         video = self.gray_scaler(video)
-        video = einops.rearrange(video, 't c w h -> t w h c')
+        video = einops.rearrange(video, 't c h w -> t h w c')
 
         # video = video.to(torch.float32) / 255.0
 
