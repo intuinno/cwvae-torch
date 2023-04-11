@@ -1,7 +1,6 @@
 absl-py==1.4.0
 av==10.0.0
 cachetools==5.3.0
-certifi @ file:///work/ci_py311/certifi_1676822443922/work/certifi
 charset-normalizer==2.1.1
 cmake==3.25.0
 contourpy==1.0.7

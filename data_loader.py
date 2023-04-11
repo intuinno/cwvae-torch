@@ -151,7 +151,7 @@ def load_dataset(cfg, **kwargs):
         test_data = torch.utils.data.Subset(test_data, range(10))
 
     train_dataloader = DataLoader(train_data, batch_size=cfg.batch_size, shuffle=True)
-    test_dataloader = DataLoader(test_data, batch_size=20, shuffle=True)
+    test_dataloader = DataLoader(test_data, batch_size=8, shuffle=True)
     return train_dataloader, test_dataloader
 
 
