@@ -112,7 +112,7 @@ class CWVAE(nn.Module):
             if level == 0:
                 target = obs
             else:
-                target = einops.rearrange(obs.clone().detach(), 'b c t h w -> b t h w c')
+                target = einops.rearrange(obs.clone().detach().requires_grad_(False), 'b c t h w -> b t h w c')
             recon_target.append(target)
 
             # embedding is [B, C, T, H, W] dimension
@@ -136,9 +136,7 @@ class CWVAE(nn.Module):
     ):
         b, t, h, w, c = inputs[0].shape
         
-        if actions==None:
-            empty_action = torch.empty(b, t, 0).to(self.device)
-            actions = empty_action 
+
             
         context = None # None for top level
         kl_balance = tools.schedule(self.configs.kl_balance, self.step)
@@ -149,6 +147,9 @@ class CWVAE(nn.Module):
         feat_list = []
 
         for level in reversed(range(self._levels)):
+            if actions==None:
+                empty_action = torch.empty(b, t, 0).to(self.device)
+                actions = empty_action 
             inp = einops.rearrange(inputs[level], 'b t h w c -> b t (h w c)')
             post, prior = self.layers[level]['dynamics'].observe(inp, context, actions)
             kl_loss, kl_value = self.layers[level]['dynamics'].kl_loss(
@@ -244,7 +245,7 @@ class CWVAE(nn.Module):
                     loss = kl_loss + recon_loss
                     metrics[f'recon_loss_{level}'] = to_np(recon_loss)
                     metrics[f'kl_loss_{level}'] = to_np(kl_loss)
-                    metrics[f'loss_{level}'] = to_np(loss)
+                    metrics[f'loss_{level}']
                     metrics[f'grad_norm_{level}'] = self.optimizers[level](loss, self.layers[level].parameters())
                     metrics[f'kl_{level}'] = to_np(torch.mean(kl_values[level]))
                     metrics[f'prior_ent_{level}'] = to_np(torch.mean(self.layers[level]['dynamics'].get_dist(priors[level]).entropy()))
