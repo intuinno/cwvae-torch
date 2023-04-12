@@ -210,7 +210,6 @@ class Optimizer():
         assert len(loss.shape) == 0, loss.shape
         metrics = {}
         metrics[f'{self._name}_loss'] = loss.detach().cpu().numpy()
-        torch.autograd.set_detect_anomaly(True)
         self._scaler.scale(loss).backward(retain_graph=retain_graph)
         self._scaler.unscale_(self._opt)
         #loss.backward(retain_graph=retain_graph)
