@@ -44,8 +44,9 @@
             "console": "integratedTerminal",
             "justMyCode": true, 
             "args": [
-                "--configs", "defaults",  "local_mmnist",
-                "--exp_name", "local"
+                "--configs", "defaults",  "local_discrete",
+                "--exp_name", "debug",
+                "--levels", "5"
             ]
         }
     ]
