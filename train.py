@@ -1,6 +1,5 @@
 import numpy as np
 import argparse
-import os
 import ruamel.yaml as yaml
 import torch
 import pathlib
