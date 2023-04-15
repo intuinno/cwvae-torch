@@ -206,11 +206,11 @@ local_discrete:
   img_size: [64, 64]
   tmp_abs_factor: 4
   dec_stddev: 1.0
-  enc_dense_hidden_size: 500
+  enc_dense_hidden_size: 1000
   cell_type: RSSMCell
   cell_stoch_size: 32
-  cell_deter_size: 100
-  cell_embed_size: 100
+  cell_deter_size: 600
+  cell_embed_size: 600
   dyn_discrete: 32
 
   precision: 16
@@ -230,5 +230,5 @@ local_discrete:
 
   # TRAINING
   lr: 0.0003
-  batch_size: 64
+  batch_size: 128
   num_epochs: 300
