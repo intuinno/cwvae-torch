@@ -1,7 +1,7 @@
 defaults:
 
   # MODEL
-  device: 'cuda:9'
+  device: 'cpu'
   exp_name: 'defaults'
   levels: 3
   tmp_abs_factor: 6
@@ -60,6 +60,7 @@ defaults:
   save_gifs: True
   save_scalars_every: 1
   save_model_every: 1
+  backup_model_every: 30
   eval_every: 1
 
 mmnist:

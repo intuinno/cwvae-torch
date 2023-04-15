@@ -46,4 +46,6 @@ if __name__ == '__main__':
         configs.use_obs = True
     
     _, val_dataloader = load_dataset(configs)
+
+    model = CWVAE(configs).to(configs.device)
     
