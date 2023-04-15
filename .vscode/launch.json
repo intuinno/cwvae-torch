@@ -46,8 +46,8 @@
             "args": [
                 "--configs", "defaults",  "local_discrete",
                 "--exp_name", "debug",
-                "--levels", "1",
-                "--device", "cuda:9"
+                "--levels", "3",
+                // "--device", "cuda:9"
             ]
         }
     ]

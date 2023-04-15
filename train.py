@@ -38,6 +38,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--configs', nargs='+', required=True)
+    parser.add_argument('--load_model', type=str)
     args, remaining = parser.parse_known_args()
     rootdir = pathlib.Path(sys.argv[0]).parent
     configs = yaml.safe_load((rootdir / 'configs.yml').read_text())
@@ -76,6 +77,13 @@ if __name__ == "__main__":
     count_parameters(model)
     print(f"========== Using {configs.device} device ===================")
 
+    # Load model if args.load_model is not none
+    if configs.load_model is not None:
+        model_path = pathlib.Path(configs.load_model).expanduser()
+        print(f"========== Loading saved model from {model_path} ===========")
+        checkpoint = torch.load(model_path)
+        model.load_state_dict(checkpoint)
+
     # Build logger
     logger = tools.Logger(exp_logdir, 0)
     metrics = {}
@@ -113,10 +121,18 @@ if __name__ == "__main__":
         openl, recon_loss = model.video_pred(x)
         logger.video('train_openl', openl)
         logger.write(fps=True)
-            
+        
+        checkpoint = {
+            'epoch': epoch+1, 
+            'model_state_dict': model.state_dict(),
+            'logger': logger, 
+        }
         # Save Check point
         if epoch % configs.save_model_every == 0:
-            torch.save(model.state_dict(), exp_logdir / 'latest_model.pt')
+            torch.save(checkpoint, exp_logdir / 'latest_checkpoint.pt')
+        
+        if epoch % configs.backup_model_every == 0:
+            torch.save(checkpoint. state_dict(), exp_logdir / f'state_{epoch}.pt')
 
     print("Training complete.")
 
