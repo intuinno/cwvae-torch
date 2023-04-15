@@ -78,8 +78,8 @@ if __name__ == "__main__":
     print(f"========== Using {configs.device} device ===================")
 
     # Load model if args.load_model is not none
-    if configs.load_model is not None:
-        model_path = pathlib.Path(configs.load_model).expanduser()
+    if args.load_model is not None:
+        model_path = pathlib.Path(args.load_model).expanduser()
         print(f"========== Loading saved model from {model_path} ===========")
         checkpoint = torch.load(model_path)
         model.load_state_dict(checkpoint)
@@ -125,14 +125,14 @@ if __name__ == "__main__":
         checkpoint = {
             'epoch': epoch+1, 
             'model_state_dict': model.state_dict(),
-            'logger': logger, 
+            # 'logger': logger, 
         }
         # Save Check point
         if epoch % configs.save_model_every == 0:
             torch.save(checkpoint, exp_logdir / 'latest_checkpoint.pt')
         
         if epoch % configs.backup_model_every == 0:
-            torch.save(checkpoint. state_dict(), exp_logdir / f'state_{epoch}.pt')
+            torch.save(checkpoint, exp_logdir / f'state_{epoch}.pt')
 
     print("Training complete.")
 
