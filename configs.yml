@@ -63,7 +63,7 @@ defaults:
   backup_model_every: 30
   eval_every: 1
 
-mmnist:
+mmnist_cont:
   # MODEL
   exp_name: "continous"
   levels: 3
@@ -99,18 +99,18 @@ mmnist:
   num_val_batches: 1
   save_named_model_every: 5000
   
-mmnist_debug:
+mmnist_cont_1level:
   # MODEL
-  levels: 3
+  exp_name: "continous_1level"
+  levels: 1
   img_size: [64, 64]
   tmp_abs_factor: 6
   dec_stddev: 1.0
   enc_dense_hidden_size: 1000
   cell_type: RSSMCell
-  cell_stoch_size: 50
+  cell_stoch_size: 20
   cell_deter_size: 200
   cell_embed_size: 200
-  precision: 16
 
   
 
@@ -127,11 +127,15 @@ mmnist_debug:
 
   # TRAINING
   lr: 0.0003
-  batch_size: 512
+  batch_size: 50
   num_epochs: 300
 
   # SUMMARIES
-mmnist_debug2:
+  open_loop_ctx: 36
+  num_val_batches: 1
+  save_named_model_every: 5000
+
+mmnist_disc:
   # MODEL
   exp_name: "mmnist_discrete"
   levels: 3
@@ -165,9 +169,9 @@ mmnist_debug2:
   batch_size: 128
   num_epochs: 300
   
-local_mmnist:
+local_cont:
   # MODEL
-  exp_name: "local_mmnist_discrete"
+  exp_name: "local_cont"
   levels: 3
   img_size: [64, 64]
   tmp_abs_factor: 4
