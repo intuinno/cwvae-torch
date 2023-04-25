@@ -115,7 +115,7 @@ class RSSM(nn.Module):
 
   def observe(self, embed, context, action, state=None):
     B, T, F = embed.shape
-    swap = lambda x: einops.rearrange(x, 'B T F -> T B F')
+    swap = lambda x: x.permute([1,0] + list(range(2, len(x.shape))))
 
     if state is None:
       state = self.initial(B)
@@ -136,7 +136,7 @@ class RSSM(nn.Module):
 
   def imagine(self, context, action, state=None):
     B, T, F = action.shape
-    swap = lambda x: einops.rearrange(x, 'B T F -> T B F')
+    swap = lambda x: x.permute([1,0] + list(range(2, len(x.shape))))
 
     if state is None:
       state = self.initial(B)
