@@ -2,6 +2,7 @@ defaults:
 
   # MODEL
   device: 'cpu'
+  exp_name: 'defaults'
   levels: 3
   tmp_abs_factor: 6
   dec_stddev: null
@@ -59,10 +60,12 @@ defaults:
   save_gifs: True
   save_scalars_every: 1
   save_model_every: 1
+  backup_model_every: 30
   eval_every: 1
 
-mmnist:
+mmnist_cont:
   # MODEL
+  exp_name: "continous"
   levels: 3
   img_size: [64, 64]
   tmp_abs_factor: 6
@@ -96,17 +99,56 @@ mmnist:
   num_val_batches: 1
   save_named_model_every: 5000
   
-mmnist_debug:
+mmnist_cont_1level:
   # MODEL
+  exp_name: "continous_1level"
+  levels: 1
+  img_size: [64, 64]
+  tmp_abs_factor: 6
+  dec_stddev: 1.0
+  enc_dense_hidden_size: 1000
+  cell_type: RSSMCell
+  cell_stoch_size: 20
+  cell_deter_size: 200
+  cell_embed_size: 200
+
+  
+
+  # DATASET
+  dataset: mmnist
+  seq_len: 100
+  eval_seq_len: 1000
+  channels: 1
+  cnn_depth: 32
+  encoder_kernels: [4, 4, 4, 4]
+  decoder_kernels: [5, 5, 6, 6]
+  decoder_thin: True
+
+
+  # TRAINING
+  lr: 0.0003
+  batch_size: 50
+  num_epochs: 300
+
+  # SUMMARIES
+  open_loop_ctx: 36
+  num_val_batches: 1
+  save_named_model_every: 5000
+
+mmnist_disc:
+  # MODEL
+  exp_name: "mmnist_discrete"
   levels: 3
   img_size: [64, 64]
   tmp_abs_factor: 6
   dec_stddev: 1.0
-  enc_dense_embed_size: 1000
+  enc_dense_hidden_size: 1000
   cell_type: RSSMCell
-  cell_stoch_size: 50
-  cell_deter_size: 200
-  cell_embed_size: 200
+  cell_stoch_size: 32
+  cell_deter_size: 600
+  cell_embed_size: 600
+  dyn_discrete: 32
+
   precision: 16
 
   
@@ -124,17 +166,52 @@ mmnist_debug:
 
   # TRAINING
   lr: 0.0003
-  batch_size: 512
+  batch_size: 128
   num_epochs: 300
-
-  # SUMMARIES
-mmnist_debug2:
+  
+local_cont:
   # MODEL
+  exp_name: "local_cont"
   levels: 3
   img_size: [64, 64]
-  tmp_abs_factor: 6
+  tmp_abs_factor: 4
   dec_stddev: 1.0
-  enc_dense_embed_size: 1000
+  enc_dense_hidden_size: 500
+  cell_type: RSSMCell
+  cell_stoch_size: 32
+  cell_deter_size: 100
+  cell_embed_size: 100
+  dyn_discrete: 0
+
+  precision: 16
+
+  
+
+  # DATASET
+  dataset: mmnist
+  seq_len: 100
+  eval_seq_len: 1000
+  channels: 1
+  cnn_depth: 32
+  encoder_kernels: [4, 4, 4, 4]
+  decoder_kernels: [5, 5, 6, 6]
+  decoder_thin: True
+
+
+  # TRAINING
+  lr: 0.0003
+  batch_size: 64
+  num_epochs: 300
+  
+
+local_discrete:
+  # MODEL
+  exp_name: "local_discrete"
+  levels: 3
+  img_size: [64, 64]
+  tmp_abs_factor: 4
+  dec_stddev: 1.0
+  enc_dense_hidden_size: 1000
   cell_type: RSSMCell
   cell_stoch_size: 32
   cell_deter_size: 600
@@ -150,7 +227,7 @@ mmnist_debug2:
   seq_len: 100
   eval_seq_len: 1000
   channels: 1
-  cnn_depth: 48
+  cnn_depth: 32
   encoder_kernels: [4, 4, 4, 4]
   decoder_kernels: [5, 5, 6, 6]
   decoder_thin: True
@@ -160,4 +237,3 @@ mmnist_debug2:
   lr: 0.0003
   batch_size: 128
   num_epochs: 300
-  
