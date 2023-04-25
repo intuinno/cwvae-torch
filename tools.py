@@ -130,7 +130,7 @@ def compute_metrics(gt, pred):
     for i in range(bs):
         for t in range(T):
             for c in range(gt[i][t].shape[0]):
-                ssim[i, t] += ssim_metric(gt[i][t][c], pred[i][t][c])
+                ssim[i, t] += ssim_metric(gt[i][t][c], pred[i][t][c], data_range=1)
                 psnr[i, t] += psnr_metric(gt[i][t][c], pred[i][t][c])
             ssim[i, t] /= gt[i][t].shape[0]
             psnr[i, t] /= gt[i][t].shape[0]
