@@ -144,11 +144,6 @@ if __name__ == '__main__':
     # Plotting.
     tools.plot_metrics(ssim_all, eval_logdir, "ssim")
     tools.plot_metrics(psnr_all, eval_logdir, "psnr")
-    metrics = { "ssim": ssim_all,
-               "psnr": psnr_all}
-    with open( eval_logdir / "metrics.pickle", 'wb') as f:
-        pickle.dump(metrics, f)
-
     
     
     
