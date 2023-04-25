@@ -50,6 +50,18 @@
                 "--device", "cuda:0",
                 "--load_model", "logs/mmnist/3level-discrete_20230412_161938/latest_model.pt"
             ]
+        },
+        {
+            "name": "eval mmnist",
+            "type": "python", 
+            "request": "launch", 
+            "program": "${workspaceFolder}/eval.py",
+            "console": "integratedTerminal",
+            "justMyCode": true, 
+            "args": [
+                "--model", "logs/logs/mmnist/3level-discrete_20230412_161938/latest_model.pt",
+                "--open-loop-ctx", "16",  
+            ]
         }
     ]
 }

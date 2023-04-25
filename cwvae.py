@@ -196,6 +196,31 @@ class CWVAE(nn.Module):
             
         return feat
 
+    def pred(self, data, num_initial=16):
+        b, t, c, w, h = data.shape
+        num_imagine = t - num_initial
+        data = self.preprocess(data)
+        truth = data + 0.5 
+        obs = data[:,:num_initial]
+        embed, _ = self.hierarchical_encode(obs)
+        posteriors, _, _, _, feats = self.hierarchical_observe(embed) 
+         
+        initial_decode = self.layers[0]['decoder'](feats[0]).mode()
+
+        empty_action = torch.empty(b, num_imagine, 0).to(self.device)
+        init_states = []
+        for level in range(self._levels):
+            init = {k: v[:,-1] for k, v in posteriors[level].items()}
+            init_states.append(init)
+
+        feat = self.hierarchical_imagine(empty_action, initial_state=init_states)
+        pred_obs = self.layers[0]['decoder'](feat)
+        nll = -pred_obs.log_prob(data[:, num_initial:])
+        recon_loss = nll.mean()
+        openl = self.layers[0]['decoder'](feat).mode() + 0.5
+        openl = np.clip(to_np(openl), 0, 1)
+        return openl
+
         
     def video_pred(self, data):
         b, t, c, w, h = data.shape
@@ -220,7 +245,7 @@ class CWVAE(nn.Module):
         pred_obs = self.layers[0]['decoder'](feat)
         nll = -pred_obs.log_prob(data[:, num_initial:])
         recon_loss = nll.mean()
-        openl = self.layers[0]['decoder'](feat).mode()[:num_gifs]
+        openl = pred_obs.mode()[:num_gifs]
         model = torch.cat([initial_decode + 0.5,  openl + 0.5], 1)
         diff = (model - truth + 1) / 2
         return_video = torch.cat([truth, model, diff], 2) 
