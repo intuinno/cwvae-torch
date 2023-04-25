@@ -93,7 +93,7 @@ if __name__ == '__main__':
             x,
             [args.num_samples, 1, 1, 1, 1],
         )
-        preds = model.pred(gts.to(configs.device), args.open_loop_ctx)        
+        preds, _, _ = model.pred(gts.to(configs.device), args.open_loop_ctx)        
 
         gts = gts / 255.0
         gts = gts.numpy()
