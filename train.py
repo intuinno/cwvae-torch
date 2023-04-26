@@ -71,8 +71,7 @@ if __name__ == "__main__":
 
     # Load dataset.
     train_dataset, val_dataset = load_dataset(configs)
-    train_dataloader = DataLoader(train_dataset, batch_size=configs.batch_size, shuffle=True, num_workers=4)
-    val_dataloader = DataLoader(val_dataset, batch_size=8, shuffle=True)
+
 
     # Build model
     model = CWVAE(configs).to(configs.device)
@@ -92,6 +91,8 @@ if __name__ == "__main__":
 
     for epoch in range(configs.num_epochs):
             
+        train_dataloader = DataLoader(train_dataset, batch_size=configs.batch_size, shuffle=True, num_workers=8)
+        val_dataloader = DataLoader(val_dataset, batch_size=8, shuffle=True)
         #Write evaluation summary
         print(f'======== Epoch {epoch} / {configs.num_epochs} ==========')
         now = datetime.now(tz)
