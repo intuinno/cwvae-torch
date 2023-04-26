@@ -173,7 +173,7 @@ local_cont:
   # MODEL
   exp_name: "local_cont"
   levels: 3
-  img_size: [32, 32]
+  img_size: [64, 64]
   tmp_abs_factor: 4
   dec_stddev: 1.0
   enc_dense_hidden_size: 100

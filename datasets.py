@@ -391,8 +391,8 @@ References:
                 num_workers=4,
                 output_format=output_format,
                 clip_length_in_frames=clip_length,
-                _video_width=32,
-                _video_height=32
+                # _video_width=32,
+                # _video_height=32
             )
             torch.save(self.video_clips, data_dir / save_filename )
 
