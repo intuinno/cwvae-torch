@@ -62,6 +62,18 @@
                 "--model", "logs/logs/mmnist/3level-discrete_20230412_161938/latest_model.pt",
                 "--open-loop-ctx", "16",  
             ]
+        },
+        {
+            "name": "mineRL-e2e",
+            "type": "python", 
+            "request": "launch", 
+            "program": "${workspaceFolder}/train.py",
+            "console": "integratedTerminal",
+            "justMyCode": true, 
+            "args": [ 
+                "--configs", "defaults",  "mineRL_e2e",
+                "--device", "cpu",
+            ]
         }
     ]
 }

@@ -228,6 +228,7 @@ class CWVAE(nn.Module):
         num_gifs = 6
         data = self.preprocess(data)
         truth = data[:num_gifs] + 0.5 
+        openl = torch.Tensor(openl).to(self.device)
         model = torch.cat([initial_decode,  openl], 1)[:num_gifs]
         diff = (model - truth + 1) / 2
         return_video = torch.cat([truth, model, diff], 2) 
