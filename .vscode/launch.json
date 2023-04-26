@@ -64,14 +64,26 @@
             ]
         },
         {
-            "name": "mineRL-e2e",
+            "name": "mineRL-local",
             "type": "python", 
             "request": "launch", 
             "program": "${workspaceFolder}/train.py",
             "console": "integratedTerminal",
             "justMyCode": true, 
             "args": [ 
-                "--configs", "defaults",  "mineRL_e2e",
+                "--configs", "defaults",  "mineRL_local",
+                "--device", "cpu",
+            ]
+        },
+        {
+            "name": "maze-local",
+            "type": "python", 
+            "request": "launch", 
+            "program": "${workspaceFolder}/train.py",
+            "console": "integratedTerminal",
+            "justMyCode": true, 
+            "args": [ 
+                "--configs", "defaults",  "maze_local",
                 "--device", "cpu",
             ]
         }
