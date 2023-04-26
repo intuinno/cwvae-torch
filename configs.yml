@@ -166,7 +166,7 @@ mmnist_disc:
 
   # TRAINING
   lr: 0.0003
-  batch_size: 128
+  batch_size: 50
   num_epochs: 300
   
 local_cont:
@@ -176,7 +176,7 @@ local_cont:
   img_size: [64, 64]
   tmp_abs_factor: 4
   dec_stddev: 1.0
-  enc_dense_hidden_size: 100
+  enc_dense_hidden_size: 500
   cell_type: RSSMCell
   cell_stoch_size: 32
   cell_deter_size: 100
@@ -190,7 +190,7 @@ local_cont:
   # DATASET
   dataset: mmnist
   seq_len: 100
-  eval_seq_len: 200
+  eval_seq_len: 1000
   channels: 1
   cnn_depth: 32
   encoder_kernels: [4, 4, 4, 4]
