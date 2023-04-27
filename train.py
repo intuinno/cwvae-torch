@@ -53,6 +53,7 @@ def main(rank: int, world_size: int, configs):
     ddp_setup(rank, world_size)
 
     if rank == 0:
+        exp_name = ""
         tz = pytz.timezone("US/Central")
         now = datetime.now(tz)
         date_time = now.strftime("%Y%m%d_%H%M%S")
@@ -149,7 +150,7 @@ if __name__ == "__main__":
     configs = yaml.safe_load((rootdir / 'configs.yml').read_text())
     
     defaults = {}
-    exp_name = ""
+    
     for name in args.configs:
         defaults.update(configs[name])
         exp_name = exp_name + name + '_'
