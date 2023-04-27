@@ -25,6 +25,8 @@ from torch.distributed import init_process_group, destroy_process_group
 # device = "cuda" if torch.cuda.is_available() else "cpu"
 # print(f"Using {device} device")
 
+
+
 def count_parameters(model):
     table = PrettyTable(["Modules", "Parameters"])
     total_params = 0
@@ -53,7 +55,8 @@ def main(rank: int, world_size: int, configs):
     ddp_setup(rank, world_size)
 
     if rank == 0:
-        exp_name = ""
+        exp_name = configs.exp_name + '_'
+        rootdir = pathlib.Path(sys.argv[0]).parent
         tz = pytz.timezone("US/Central")
         now = datetime.now(tz)
         date_time = now.strftime("%Y%m%d_%H%M%S")
@@ -76,7 +79,7 @@ def main(rank: int, world_size: int, configs):
     # Load dataset.
     train_dataset, val_dataset = load_dataset(configs)
     train_dataloader = DataLoader(train_dataset, batch_size=configs.batch_size, 
-                                  shuffle=True, pin_memory=True, sampler=DistributedSampler(train_dataset) )
+                                  pin_memory=True, sampler=DistributedSampler(train_dataset) )
     val_dataloader = DataLoader(val_dataset, batch_size=8, shuffle=True)
 
     # Build model
@@ -101,7 +104,7 @@ def main(rank: int, world_size: int, configs):
             logger.step = epoch
             if epoch % configs.eval_every == 0:
                 x = next(iter(val_dataloader))
-                openl, recon_loss = model.video_pred(x.to(rank))
+                openl, recon_loss = model.module.video_pred(x.to(rank))
                 logger.video('eval_openl', openl)
                 logger.scalar('eval_video_nll', recon_loss)
                 logger.write(fps=True)
@@ -153,7 +156,6 @@ if __name__ == "__main__":
     
     for name in args.configs:
         defaults.update(configs[name])
-        exp_name = exp_name + name + '_'
     parser = argparse.ArgumentParser()
     for key, value in sorted(defaults.items(), key=lambda x: x[0]):
         arg_type = tools.args_type(value)
