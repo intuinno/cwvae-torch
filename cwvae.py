@@ -7,6 +7,14 @@ import einops
 import torch.nn.functional as F
 from torch import distributions as torchd
 
+
+from torchview import draw_graph
+import graphviz
+# graphviz.set_jupyter_format('png')
+from torchviz import make_dot, make_dot_from_trace
+
+DEBUG = False
+
 to_np = lambda x: x.detach().cpu().numpy()
 
 # device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -284,14 +292,18 @@ class CWVAE(nn.Module):
         metrics = {}
         with tools.RequiresGrad(self):
             with torch.cuda.amp.autocast(self._use_amp):
-                obs = self.preprocess(obs)
+
                 recons, embeddings, recon_targets = self.hierarchical_pre_encode(obs)
                 
                 for level in range(1, self._levels):
                     recon_loss = F.binary_cross_entropy(recons[level-1], recon_targets[level-1], reduction = 'sum')
                     loss = recon_loss 
                     # self.pre_opt[str(level)].zero_grad()
+                    
                     metrics[f'pre_grad_norm_{level}'] = self.pre_opt[str(level)](loss, self.pre_layers[str(level)].parameters())
+                    if DEBUG:
+                        dot = make_dot(recon_loss, params=dict(self.pre_layers.named_parameters()))
+                        dot.render(f"graph_{level}.pdf")
                     # loss.backward()
                     # self.pre_opt[str(level)].step()
                     metrics[f'recon_loss_{level}'] = to_np(recon_loss)
@@ -309,8 +321,8 @@ class CWVAE(nn.Module):
             # metrics[f'loss_{level}'] = to_np(loss)
         num_gifs = 6
         truth = obs[:num_gifs] + 0.5 
-        layer1_recon = recons[0][:num_gifs] + 0.5
-        layer2_recon = self.pre_layers['1'].decode(recons[1][:num_gifs]) + 0.5
+        layer1_recon = recons[0][:num_gifs] 
+        layer2_recon = self.pre_layers['1'].decode(recons[1][:num_gifs]) 
         layer2_recon = layer2_recon[:, :truth.shape[1], :, :, :]
         return_video = torch.cat([truth, layer1_recon, layer2_recon], 2)
         # return_video = (return_video * 255).to(dtype=torch.uint8)
@@ -353,8 +365,10 @@ class CWVAE(nn.Module):
                 Each element is Un-flattened observations (videos) of shape BTHWC for 
                 (batch size, timesteps, height, width, channel ) 
     """ 
+    
+                    
         embeddings, recons, recon_targets, dists = [], [], [], []
-        embedding = obs 
+        embedding = self.preprocess(obs) 
         for level in range(1, self._levels):
             # embedding is [B, T, H, W, C] dimension
             # To reduce with _tmp_abs_factor^level, we need to pad T dimension of embedding
@@ -369,9 +383,9 @@ class CWVAE(nn.Module):
             obs = embedding.clone().detach().requires_grad_(False)
            
             recon, embedding = self.pre_layers[str(level)].forward(obs)
-            recons.append(recon)
+            recons.append(recon+0.5)
             embeddings.append(embedding)
-            recon_targets.append(obs) 
+            recon_targets.append(obs+0.5) 
 
         return recons, embeddings, recon_targets
         

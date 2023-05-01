@@ -102,8 +102,8 @@ if __name__ == "__main__":
         if epoch % configs.eval_every == 0:
             x = next(iter(val_dataloader))
             openl, recon_loss = model.pre_eval(x.to(configs.device))
-            logger.video('eval_openl', openl)
-            logger.scalar('eval_video_nll', recon_loss)
+            logger.video('pre_video', openl)
+            logger.scalar('pre_video_nll', recon_loss)
             logger.write(fps=True)
         
         print(f"Training ...")
