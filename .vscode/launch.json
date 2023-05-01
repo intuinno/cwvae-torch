@@ -59,8 +59,8 @@
             "console": "integratedTerminal",
             "justMyCode": true, 
             "args": [
-                "--model", "logs/logs/mmnist/3level-discrete_20230412_161938/latest_model.pt",
-                "--open-loop-ctx", "16",  
+                "--model", "logs/mmnist/defaults_mmnist_cont_1level_20230425_180743/latest_model.pt",
+                "--open-loop-ctx", "32",  
             ]
         }
     ]
