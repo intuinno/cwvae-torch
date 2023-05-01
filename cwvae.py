@@ -8,12 +8,15 @@ import torch.nn.functional as F
 from torch import distributions as torchd
 
 
-from torchview import draw_graph
-import graphviz
-# graphviz.set_jupyter_format('png')
-from torchviz import make_dot, make_dot_from_trace
+
 
 DEBUG = False
+
+if DEBUG:
+    from torchview import draw_graph
+    import graphviz
+    # graphviz.set_jupyter_format('png')
+    from torchviz import make_dot, make_dot_from_trace
 
 to_np = lambda x: x.detach().cpu().numpy()
 
