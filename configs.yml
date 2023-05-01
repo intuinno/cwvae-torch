@@ -176,7 +176,7 @@ local_cont:
   img_size: [64, 64]
   tmp_abs_factor: 4
   dec_stddev: 1.0
-  enc_dense_hidden_size: 500
+  enc_dense_hidden_size: 100
   cell_type: RSSMCell
   cell_stoch_size: 32
   cell_deter_size: 100
@@ -190,7 +190,7 @@ local_cont:
   # DATASET
   dataset: mmnist
   seq_len: 100
-  eval_seq_len: 1000
+  eval_seq_len: 200
   channels: 1
   cnn_depth: 32
   encoder_kernels: [4, 4, 4, 4]
@@ -200,7 +200,7 @@ local_cont:
 
   # TRAINING
   lr: 0.0003
-  batch_size: 64
+  batch_size: 50
   num_epochs: 300
   
 
@@ -237,3 +237,80 @@ local_discrete:
   lr: 0.0003
   batch_size: 128
   num_epochs: 300
+
+
+
+mineRL_e2e:
+  # MODEL
+  exp_name: "mineRL-e2e"
+  levels: 3
+  img_size: [64, 64]
+  tmp_abs_factor: 4
+  dec_stddev: 0.4
+  enc_dense_hidden_size: 1000
+  cell_type: RSSMCell
+  cell_stoch_size: 100
+  cell_deter_size: 800
+  cell_embed_size: 800
+  dyn_discrete: 0
+
+  precision: 16
+
+  
+
+  # DATASET
+  dataset: minerl
+  seq_len: 100
+  eval_seq_len: 500
+  channels: 3
+  cnn_depth: 32
+  encoder_kernels: [4, 4, 4, 4]
+  decoder_kernels: [5, 5, 6, 6]
+  decoder_thin: True
+
+
+  # TRAINING
+  lr: 0.0001
+  batch_size: 50
+  num_epochs: 600
+
+
+  # SUMMARIES
+  open_loop_ctx: 17
+  num_val_batches: 1
+  save_named_model_every: 5000
+
+maze_e2e:
+  # MODEL
+  exp_name: "mineRL-e2e"
+  levels: 3
+  tmp_abs_factor: 6
+  img_size: [64, 64]
+  dec_stddev: 0.1
+  enc_dense_embed_size: 1000
+  cell_type: RSSMCell
+  cell_stoch_size: 20
+  cell_deter_size: 200
+  cell_embed_size: 200
+  dyn_discrete: 0
+
+  precision: 16
+  # DATASET
+  dataset: mazes
+  seq_len: 100
+  eval_seq_len: 300
+  channels: 3
+  cnn_depth: 32
+  encoder_kernels: [4, 4, 4, 4]
+  decoder_kernels: [5, 5, 6, 6]
+  decoder_thin: True
+
+  # TRAINING
+  lr: 0.0003
+  batch_size: 50
+  num_epochs: 100
+
+  # SUMMARIES
+  open_loop_ctx: 36
+  num_val_batches: 1
+  save_named_model_every: 5000

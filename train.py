@@ -70,7 +70,9 @@ if __name__ == "__main__":
         yaml.dump(configs, f, default_flow_style=False)
 
     # Load dataset.
-    train_dataloader, val_dataloader = load_dataset(configs)
+    train_dataset, val_dataset = load_dataset(configs)
+    train_dataloader = DataLoader(train_dataset, batch_size=configs.batch_size, shuffle=True)
+    val_dataloader = DataLoader(val_dataset, batch_size=8, shuffle=True)
 
     # Build model
     model = CWVAE(configs).to(configs.device)
