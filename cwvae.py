@@ -312,15 +312,14 @@ class CWVAE(nn.Module):
         return metrics
                     
     def pre_eval(self, data):
-        obs = self.preprocess(data)
-        recons, embeddings, recon_targets = self.hierarchical_pre_encode(obs)
+        recons, embeddings, recon_targets = self.hierarchical_pre_encode(data)
         for level in range(1, self._levels):
             recon_loss = F.binary_cross_entropy(recons[level-1], recon_targets[level-1], reduction = 'sum')
             loss = recon_loss 
             # metrics[f'recon_loss_{level}'] = to_np(recon_loss)
             # metrics[f'loss_{level}'] = to_np(loss)
         num_gifs = 6
-        truth = obs[:num_gifs] + 0.5 
+        truth = recon_targets[0][:num_gifs]  
         layer1_recon = recons[0][:num_gifs] 
         layer2_recon = self.pre_layers['1'].decode(recons[1][:num_gifs]) 
         layer2_recon = layer2_recon[:, :truth.shape[1], :, :, :]

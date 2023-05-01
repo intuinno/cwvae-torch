@@ -372,7 +372,7 @@ class Conv3dVAE(nn.Module):
   
   def __init__(self, channels_factor=2, 
                num_conv_layers=2, 
-               act=nn.ReLU,
+               act=nn.ELU,
                kernels=(2,4,4),
                stride=(1,2,2),
                input_num_seq=4,
@@ -385,14 +385,15 @@ class Conv3dVAE(nn.Module):
     
     enc_layers =[]
     in_channels = input_channels
-    for _ in range(num_conv_layers):
+    for level in range(num_conv_layers):
       out_channels = in_channels * channels_factor
       enc_layers.append(nn.Conv3d(in_channels, 
                                   out_channels,
                                   kernels, stride, 
                                   padding=(0,1,1)
                                   ))
-      enc_layers.append(act())
+      if level < num_conv_layers-1:
+        enc_layers.append(act())
       in_channels = out_channels 
     self.encoder = nn.Sequential(*enc_layers)
     
@@ -407,7 +408,8 @@ class Conv3dVAE(nn.Module):
                                            stride,
                                            padding=(0,1,1)
                                            ))
-      dec_layers.append(act())
+      if level < num_conv_layers-1:
+        dec_layers.append(act())
       in_channels = out_channels
     self.decoder = nn.Sequential(*dec_layers)
     self._temp_abs_factor = temp_abs_factor
@@ -418,12 +420,14 @@ class Conv3dVAE(nn.Module):
     t1 = T // self._temp_abs_factor
     x = einops.rearrange(x, 'b (t t2) h w c -> (b t) c t2 h w', t2=self._temp_abs_factor) 
     z = self.encoder(x)
+    z = torch.clip(z, -0.5, 0.5)
     # logits = einops.rearrange(logits, 'b c t h w -> b t h w c')
     # dist = torchd.OneHotCategoricalStraightThrough(logits=logits)
     # dist = torchd.independent.Independent(dist, 3)
     # z = dist.rsample()
     # dec_z = einops.rearrange(z, 'b t h w c -> b c t h w')
     recon = self.decoder(z)
+    recon = torch.clip(recon, -0.5, 0.5)
     recon = einops.rearrange(recon, '(b t1) c t2 h w -> b (t1 t2) h w c', t1=t1)
     z = einops.rearrange(z, '(b t1) c t h w -> b t1 h w (c t)', t1=t1)
     return recon, z
