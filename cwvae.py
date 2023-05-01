@@ -5,6 +5,7 @@ import tools
 import numpy as np
 import einops
 import torch.nn.functional as F
+from torch import distributions as torchd
 
 to_np = lambda x: x.detach().cpu().numpy()
 
@@ -18,6 +19,8 @@ class CWVAE(nn.Module):
         self._use_amp = True if configs.precision==16 else False
         self.layers = nn.ModuleList()
         self.optimizers = []
+        self.pre_opt = {}
+        self.pre_layers = nn.ModuleDict()
         
         if configs.dyn_discrete:
             feat_size = configs.cell_stoch_size * configs.dyn_discrete + configs.cell_deter_size
@@ -54,6 +57,21 @@ class CWVAE(nn.Module):
                 layer['encoder'] = networks.Conv3dEncoder()
                 layer['decoder'] = networks.Conv3dDecoder(feat_size=feat_size,
                                                           shape=(C, H, W))
+                input_channels = configs.channels * (2*configs.tmp_abs_factor) ** (level-1)
+                self.pre_layers[str(level)] = networks.Conv3dVAE(input_channels=input_channels)
+                
+                opt = tools.Optimizer(
+                    f'preAE_{level}',
+                    self.pre_layers[str(level)].parameters(),
+                    configs.lr, 
+                    eps=configs.eps, 
+                    clip=configs.clip_grad_norm_by,
+                    wd=configs.weight_decay,
+                    opt=configs.optimizer,
+                    use_amp=self._use_amp
+                )
+                self.pre_opt[str(level)] = opt
+                    
             layer['dynamics'] = networks.RSSM(
                 stoch=configs.cell_stoch_size,
                 deter=configs.cell_deter_size,
@@ -234,7 +252,8 @@ class CWVAE(nn.Module):
         return_video = torch.cat([truth, model, diff], 2) 
         # return_video = (return_video * 255).to(dtype=torch.uint8)
         return to_np(return_video), recon_loss
-        
+    
+
     def local_train(self, obs):
         
         metrics = {}
@@ -260,8 +279,101 @@ class CWVAE(nn.Module):
                     metrics[f'posterior_ent_{level}'] = to_np(torch.mean(self.layers[level]['dynamics'].get_dist(posteriors[level]).entropy()))
 
         return metrics
-        
 
+    def pre_train(self, obs):
+        metrics = {}
+        with tools.RequiresGrad(self):
+            with torch.cuda.amp.autocast(self._use_amp):
+                obs = self.preprocess(obs)
+                recons, embeddings, recon_targets = self.hierarchical_pre_encode(obs)
+                
+                for level in range(1, self._levels):
+                    recon_loss = F.binary_cross_entropy(recons[level-1], recon_targets[level-1], reduction = 'sum')
+                    loss = recon_loss 
+                    # self.pre_opt[str(level)].zero_grad()
+                    metrics[f'pre_grad_norm_{level}'] = self.pre_opt[str(level)](loss, self.pre_layers[str(level)].parameters())
+                    # loss.backward()
+                    # self.pre_opt[str(level)].step()
+                    metrics[f'recon_loss_{level}'] = to_np(recon_loss)
+                    # metrics[f'kl_loss_{level}'] = to_np(kl_loss)
+                    metrics[f'loss_{level}'] = to_np(loss)
+        return metrics
+                    
+    def pre_eval(self, data):
+        obs = self.preprocess(data)
+        recons, embeddings, recon_targets = self.hierarchical_pre_encode(obs)
+        for level in range(1, self._levels):
+            recon_loss = F.binary_cross_entropy(recons[level-1], recon_targets[level-1], reduction = 'sum')
+            loss = recon_loss 
+            # metrics[f'recon_loss_{level}'] = to_np(recon_loss)
+            # metrics[f'loss_{level}'] = to_np(loss)
+        num_gifs = 6
+        truth = obs[:num_gifs] + 0.5 
+        layer1_recon = recons[0][:num_gifs] + 0.5
+        layer2_recon = self.pre_layers['1'].decode(recons[1][:num_gifs]) + 0.5
+        layer2_recon = layer2_recon[:, :truth.shape[1], :, :, :]
+        return_video = torch.cat([truth, layer1_recon, layer2_recon], 2)
+        # return_video = (return_video * 255).to(dtype=torch.uint8)
+        return to_np(return_video), recon_loss
+                      
+        
+    def pred(self, data, num_initial=16):
+        b, t, c, w, h = data.shape
+        num_imagine = t - num_initial
+        data = self.preprocess(data)
+        truth = data + 0.5 
+        obs = data[:,:num_initial]
+        embed, _ = self.hierarchical_encode(obs)
+        posteriors, _, _, _, feats = self.hierarchical_observe(embed) 
+         
+        initial_decode = self.layers[0]['decoder'](feats[0]).mode() + 0.5
+
+        empty_action = torch.empty(b, num_imagine, 0).to(self.device)
+        init_states = []
+        for level in range(self._levels):
+            init = {k: v[:,-1] for k, v in posteriors[level].items()}
+            init_states.append(init)
+
+        feat = self.hierarchical_imagine(empty_action, initial_state=init_states)
+        pred_obs = self.layers[0]['decoder'](feat)
+        nll = -pred_obs.log_prob(data[:, num_initial:])
+        recon_loss = nll.mean()
+        openl = self.layers[0]['decoder'](feat).mode() + 0.5
+        openl = np.clip(to_np(openl), 0, 1)
+        return openl, recon_loss, initial_decode
+
+    def hierarchical_pre_encode(self,
+                            obs):
+        """
+        Arguments:
+            obs : Tensor
+                Un-flattened observations (videos) of shape BTHWC (batch size, timesteps, height, width, channel)
+        Return:
+            List of Tensors
+                Each element is Un-flattened observations (videos) of shape BTHWC for 
+                (batch size, timesteps, height, width, channel ) 
+    """ 
+        embeddings, recons, recon_targets, dists = [], [], [], []
+        embedding = obs 
+        for level in range(1, self._levels):
+            # embedding is [B, T, H, W, C] dimension
+            # To reduce with _tmp_abs_factor^level, we need to pad T dimension of embedding
+            # such that it is divisible with timesteps_to_merge
+            timesteps_to_merge = self._tmp_abs_factor
+            timesteps_to_pad = np.mod(
+                timesteps_to_merge - np.mod(embedding.shape[1], timesteps_to_merge),
+                timesteps_to_merge
+            )
+            pad = (0, 0, 0, 0, 0, 0, 0, timesteps_to_pad, 0, 0)
+            embedding = F.pad(embedding, pad, "constant", 0)
+            obs = embedding.clone().detach().requires_grad_(False)
+           
+            recon, embedding = self.pre_layers[str(level)].forward(obs)
+            recons.append(recon)
+            embeddings.append(embedding)
+            recon_targets.append(obs) 
+
+        return recons, embeddings, recon_targets
         
     def preprocess(self, obs):
         # obs = obs.clone()

@@ -101,7 +101,7 @@ if __name__ == "__main__":
         logger.step = epoch
         if epoch % configs.eval_every == 0:
             x = next(iter(val_dataloader))
-            openl, recon_loss = model.video_pred(x.to(configs.device))
+            openl, recon_loss = model.pre_eval(x.to(configs.device))
             logger.video('eval_openl', openl)
             logger.scalar('eval_video_nll', recon_loss)
             logger.write(fps=True)
@@ -109,7 +109,7 @@ if __name__ == "__main__":
         print(f"Training ...")
         for i, x in enumerate(tqdm(train_dataloader)):
             x = x.to(configs.device)
-            met = model.local_train(x)
+            met = model.pre_train(x)
             for name, values in met.items():
                 if not name in metrics.keys():
                     metrics[name] = [values]

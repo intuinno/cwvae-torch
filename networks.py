@@ -367,7 +367,79 @@ class ConvEncoder(nn.Module):
     x = self.layers(x)
     x = einops.rearrange(x, '(b t) c h w -> b c t h w', b=obs.shape[0])
     return x  
+ 
+class Conv3dVAE(nn.Module):
   
+  def __init__(self, channels_factor=2, 
+               num_conv_layers=2, 
+               act=nn.ReLU,
+               kernels=(2,4,4),
+               stride=(1,2,2),
+               input_num_seq=4,
+               input_width=64,
+               input_height=64,
+               input_channels=1,
+               temp_abs_factor=4):
+    super(Conv3dVAE, self).__init__()
+    self._act = act 
+    
+    enc_layers =[]
+    in_channels = input_channels
+    for _ in range(num_conv_layers):
+      out_channels = in_channels * channels_factor
+      enc_layers.append(nn.Conv3d(in_channels, 
+                                  out_channels,
+                                  kernels, stride, 
+                                  padding=(0,1,1)
+                                  ))
+      enc_layers.append(act())
+      in_channels = out_channels 
+    self.encoder = nn.Sequential(*enc_layers)
+    
+    
+    dec_layers =[]
+    in_channels = out_channels 
+    for _ in range(num_conv_layers):
+      out_channels = in_channels // channels_factor 
+      dec_layers.append(nn.ConvTranspose3d(in_channels, 
+                                           out_channels,
+                                           kernels,
+                                           stride,
+                                           padding=(0,1,1)
+                                           ))
+      dec_layers.append(act())
+      in_channels = out_channels
+    self.decoder = nn.Sequential(*dec_layers)
+    self._temp_abs_factor = temp_abs_factor
+    
+  def forward(self, x):
+    # Assume x is (b t h w c)
+    B, T, H, W, C = x.shape
+    t1 = T // self._temp_abs_factor
+    x = einops.rearrange(x, 'b (t t2) h w c -> (b t) c t2 h w', t2=self._temp_abs_factor) 
+    z = self.encoder(x)
+    # logits = einops.rearrange(logits, 'b c t h w -> b t h w c')
+    # dist = torchd.OneHotCategoricalStraightThrough(logits=logits)
+    # dist = torchd.independent.Independent(dist, 3)
+    # z = dist.rsample()
+    # dec_z = einops.rearrange(z, 'b t h w c -> b c t h w')
+    recon = self.decoder(z)
+    recon = einops.rearrange(recon, '(b t1) c t2 h w -> b (t1 t2) h w c', t1=t1)
+    z = einops.rearrange(z, '(b t1) c t h w -> b t1 h w (c t)', t1=t1)
+    return recon, z
+  
+  def decode(self, emb):
+    # Assume emb is (b t h w c)
+    B, T, H, W, C = emb.shape
+    t2 = C // self._temp_abs_factor
+    z = einops.rearrange(emb, 'b t h w (c t2) -> (b t) c t2 h w', t2 = t2)
+    recon = self.decoder(z)
+    recon = einops.rearrange(recon, '(b t1) c t h w -> b (t1 t) h w c', t1=T)
+    return recon 
+      
+    
+      
+    
 class Conv3dEncoder(nn.Module):
   
   def __init__(self, channels=256, act=nn.ReLU):
