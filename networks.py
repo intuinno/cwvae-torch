@@ -380,41 +380,35 @@ class Conv3dVAE(nn.Module):
                input_channels=1,
                temp_abs_factor=4):
     super(Conv3dVAE, self).__init__()
-    self._act = act 
     
-    enc_layers =[]
-    in_channels = input_channels
-    for level in range(num_conv_layers):
-      out_channels = in_channels * channels_factor
-      enc_layers.append(nn.Conv3d(in_channels, 
-                                  out_channels,
-                                  kernels, stride, 
-                                  padding=(1,1,1)
-                                  ))
-      if level < num_conv_layers-1:
-        enc_layers.append(act())
-      in_channels = out_channels 
-    enc_layers.append(nn.Tanh())
-    self.encoder = nn.Sequential(*enc_layers)
+    c_hid = channels_factor * input_channels 
+    
+    self.encoder = nn.Sequential(
+        nn.Conv3d(input_channels, c_hid, kernel_size=3, padding=1, stride=2),  # 64x64 => 32x32
+        act(),
+        nn.Conv3d(c_hid, c_hid, kernel_size=3, padding=1),
+        act(),
+        nn.Conv3d(c_hid, channels_factor * c_hid, kernel_size=3, padding=1, stride=2),  # 32x32 => 16x16
+        act(),
+        nn.Conv3d(channels_factor * c_hid, channels_factor * c_hid, kernel_size=3, padding=1),
+        nn.Tanh(),
+        )
+
+
+    self.decoder = nn.Sequential(
+        nn.ConvTranspose3d(
+            channels_factor * c_hid, c_hid, kernel_size=3, output_padding=1, padding=1, stride=2
+        ),  # 16x16 => 32x32
+        act(),
+        nn.Conv3d( c_hid,  c_hid, kernel_size=3, padding=1),
+        act(),
+        nn.ConvTranspose3d(c_hid, input_channels, kernel_size=3, output_padding=1, padding=1, stride=2),  # 32x32 => 64x64
+        act(),
+        nn.Conv3d(input_channels, input_channels, kernel_size=3, padding=1),
+        nn.Tanh(),  # The input images is scaled between -1 and 1, hence the output has to be bounded as well
+    )
     
     
-    dec_layers =[]
-    in_channels = out_channels 
-    for level in range(num_conv_layers):
-      out_channels = in_channels // channels_factor 
-      dec_layers.append(nn.ConvTranspose3d(in_channels, 
-                                           out_channels,
-                                           kernels,
-                                           stride,
-                                           padding=(1,1,1),
-                                           output_padding=(1,1,1),
-                                           ))
-      if level < num_conv_layers-1:
-        dec_layers.append(act())
-      in_channels = out_channels
-    dec_layers.append(nn.Tanh())
-    self.decoder = nn.Sequential(*dec_layers)
-    self._temp_abs_factor = temp_abs_factor
     
   def forward(self, x):
     # Assume x is (b t h w c)
