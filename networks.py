@@ -406,7 +406,8 @@ class Conv3dVAE(nn.Module):
                                            out_channels,
                                            kernels,
                                            stride,
-                                           padding=(0,1,1)
+                                           padding=(0,1,1),
+                                           output_padding=(0,2,2)
                                            ))
       if level < num_conv_layers-1:
         dec_layers.append(act())
