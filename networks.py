@@ -370,11 +370,11 @@ class ConvEncoder(nn.Module):
  
 class Conv3dVAE(nn.Module):
   
-  def __init__(self, channels_factor=2, 
+  def __init__(self, channels_factor=4, 
                num_conv_layers=2, 
                act=nn.ELU,
-               kernels=(2,4,4),
-               stride=(1,2,2),
+               kernels=(4,4,4),
+               stride=(2,2,2),
                input_num_seq=4,
                input_width=64,
                input_height=64,
@@ -390,7 +390,7 @@ class Conv3dVAE(nn.Module):
       enc_layers.append(nn.Conv3d(in_channels, 
                                   out_channels,
                                   kernels, stride, 
-                                  padding=(0,1,1)
+                                  padding=(1,1,1)
                                   ))
       if level < num_conv_layers-1:
         enc_layers.append(act())
@@ -407,7 +407,7 @@ class Conv3dVAE(nn.Module):
                                            out_channels,
                                            kernels,
                                            stride,
-                                           padding=(0,1,1),
+                                           padding=(1,1,1),
                                           #  output_padding=(0,1,1),
                                            ))
       if level < num_conv_layers-1:
@@ -419,29 +419,18 @@ class Conv3dVAE(nn.Module):
     
   def forward(self, x):
     # Assume x is (b t h w c)
-    B, T, H, W, C = x.shape
-    t1 = T // self._temp_abs_factor
-    x = einops.rearrange(x, 'b (t t2) h w c -> (b t) c t2 h w', t2=self._temp_abs_factor) 
+    x = einops.rearrange(x, 'b t h w c -> b c t h w' ) 
     z = self.encoder(x)
-    # z = torch.clip(z, -0.5, 0.5)
-    # logits = einops.rearrange(logits, 'b c t h w -> b t h w c')
-    # dist = torchd.OneHotCategoricalStraightThrough(logits=logits)
-    # dist = torchd.independent.Independent(dist, 3)
-    # z = dist.rsample()
-    # dec_z = einops.rearrange(z, 'b t h w c -> b c t h w')
     recon = self.decoder(z)
-    # recon = torch.clip(recon, -0.5, 0.5)
-    recon = einops.rearrange(recon, '(b t1) c t2 h w -> b (t1 t2) h w c', t1=t1)
-    z = einops.rearrange(z, '(b t1) c t h w -> b t1 h w (c t)', t1=t1)
+    recon = einops.rearrange(recon, 'b c t h w -> b t h w c')
+    z = einops.rearrange(z, 'b c t h w -> b t h w c ')
     return recon, z
   
   def decode(self, emb):
     # Assume emb is (b t h w c)
-    B, T, H, W, C = emb.shape
-    t2 = C // self._temp_abs_factor
-    z = einops.rearrange(emb, 'b t h w (c t2) -> (b t) c t2 h w', t2 = t2)
+    z = einops.rearrange(emb, 'b t h w c -> b c t h w')
     recon = self.decoder(z)
-    recon = einops.rearrange(recon, '(b t1) c t h w -> b (t1 t) h w c', t1=T)
+    recon = einops.rearrange(recon, 'b c t h w -> b t h w c')
     return recon 
       
     
