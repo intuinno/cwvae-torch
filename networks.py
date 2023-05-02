@@ -373,9 +373,8 @@ class Conv3dVAE(nn.Module):
   def __init__(self, channels_factor=4, 
                num_conv_layers=2, 
                act=nn.ELU,
-               kernels=(4,4,4),
+               kernels=(3,3,3),
                stride=(2,2,2),
-               input_num_seq=4,
                input_width=64,
                input_height=64,
                input_channels=1,
@@ -408,7 +407,7 @@ class Conv3dVAE(nn.Module):
                                            kernels,
                                            stride,
                                            padding=(1,1,1),
-                                          #  output_padding=(0,1,1),
+                                           output_padding=(1,1,1),
                                            ))
       if level < num_conv_layers-1:
         dec_layers.append(act())
