@@ -395,6 +395,7 @@ class Conv3dVAE(nn.Module):
       if level < num_conv_layers-1:
         enc_layers.append(act())
       in_channels = out_channels 
+    enc_layers.append(nn.Tanh())
     self.encoder = nn.Sequential(*enc_layers)
     
     
@@ -407,11 +408,12 @@ class Conv3dVAE(nn.Module):
                                            kernels,
                                            stride,
                                            padding=(0,1,1),
-                                           output_padding=(0,2,2)
+                                          #  output_padding=(0,1,1),
                                            ))
       if level < num_conv_layers-1:
         dec_layers.append(act())
       in_channels = out_channels
+    dec_layers.append(nn.Tanh())
     self.decoder = nn.Sequential(*dec_layers)
     self._temp_abs_factor = temp_abs_factor
     
@@ -421,14 +423,14 @@ class Conv3dVAE(nn.Module):
     t1 = T // self._temp_abs_factor
     x = einops.rearrange(x, 'b (t t2) h w c -> (b t) c t2 h w', t2=self._temp_abs_factor) 
     z = self.encoder(x)
-    z = torch.clip(z, -0.5, 0.5)
+    # z = torch.clip(z, -0.5, 0.5)
     # logits = einops.rearrange(logits, 'b c t h w -> b t h w c')
     # dist = torchd.OneHotCategoricalStraightThrough(logits=logits)
     # dist = torchd.independent.Independent(dist, 3)
     # z = dist.rsample()
     # dec_z = einops.rearrange(z, 'b t h w c -> b c t h w')
     recon = self.decoder(z)
-    recon = torch.clip(recon, -0.5, 0.5)
+    # recon = torch.clip(recon, -0.5, 0.5)
     recon = einops.rearrange(recon, '(b t1) c t2 h w -> b (t1 t2) h w c', t1=t1)
     z = einops.rearrange(z, '(b t1) c t h w -> b t1 h w (c t)', t1=t1)
     return recon, z

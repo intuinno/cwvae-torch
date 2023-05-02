@@ -107,9 +107,13 @@ if __name__ == "__main__":
             logger.write(fps=True)
         
         print(f"Training ...")
+        if epoch < 50: 
+            train_level = 2
+        else:
+            train_level = 3
         for i, x in enumerate(tqdm(train_dataloader)):
             x = x.to(configs.device)
-            met = model.pre_train(x)
+            met = model.pre_train(x, train_level=train_level)
             for name, values in met.items():
                 if not name in metrics.keys():
                     metrics[name] = [values]

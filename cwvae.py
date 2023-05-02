@@ -292,14 +292,14 @@ class CWVAE(nn.Module):
 
         return metrics
 
-    def pre_train(self, obs):
+    def pre_train(self, obs, train_level=2):
         metrics = {}
         with tools.RequiresGrad(self):
             with torch.cuda.amp.autocast(self._use_amp):
 
                 recons, embeddings, recon_targets = self.hierarchical_pre_encode(obs)
                 
-                for level in range(1, self._levels):
+                for level in range(1, train_level):
                     recon_loss = F.binary_cross_entropy(recons[level-1], recon_targets[level-1], reduction = 'sum')
                     # recon_loss = self.pre_loss(recons[level-1], recon_targets[level-1])
                     loss = recon_loss 
@@ -387,16 +387,23 @@ class CWVAE(nn.Module):
             obs = embedding.clone().detach().requires_grad_(False)
            
             recon, embedding = self.pre_layers[str(level)].forward(obs)
-            recons.append(recon+0.5)
+            recon = self.postprocess(recon)
+            obs = self.postprocess(obs)
+            recons.append(recon)
             embeddings.append(embedding)
-            recon_targets.append(obs+0.5) 
+            recon_targets.append(obs) 
 
         return recons, embeddings, recon_targets
         
     def preprocess(self, obs):
         # obs = obs.clone()
-        obs = obs / 255.0 - 0.5
+        obs = obs / 255.0 - 0.5 
+        obs = obs * 2.0
         obs.to(self.device)
+        return obs
+
+    def postprocess(self, obs):
+        obs = obs / 2.0 + 0.5
         return obs
                 
         
