@@ -300,8 +300,8 @@ class CWVAE(nn.Module):
                 recons, embeddings, recon_targets = self.hierarchical_pre_encode(obs)
                 
                 for level in range(1, self._levels):
-                    # recon_loss = F.binary_cross_entropy(recons[level-1], recon_targets[level-1], reduction = 'sum')
-                    recon_loss = self.pre_loss(recons[level-1], recon_targets[level-1])
+                    recon_loss = F.binary_cross_entropy(recons[level-1], recon_targets[level-1], reduction = 'sum')
+                    # recon_loss = self.pre_loss(recons[level-1], recon_targets[level-1])
                     loss = recon_loss 
                     # self.pre_opt[str(level)].zero_grad()
                     
