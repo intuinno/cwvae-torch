@@ -68,7 +68,7 @@ class CWVAE(nn.Module):
                 layer['encoder'] = networks.Conv3dEncoder()
                 layer['decoder'] = networks.Conv3dDecoder(feat_size=feat_size,
                                                           shape=(C, H, W))
-                input_channels = configs.channels * (2*configs.tmp_abs_factor) ** (level-1)
+                input_channels = configs.channels * (16) ** (level-1)
                 self.pre_layers[str(level)] = networks.Conv3dVAE(input_channels=input_channels)
                 
                 opt = tools.Optimizer(

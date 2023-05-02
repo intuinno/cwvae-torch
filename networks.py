@@ -401,7 +401,7 @@ class Conv3dVAE(nn.Module):
     
     dec_layers =[]
     in_channels = out_channels 
-    for _ in range(num_conv_layers):
+    for level in range(num_conv_layers):
       out_channels = in_channels // channels_factor 
       dec_layers.append(nn.ConvTranspose3d(in_channels, 
                                            out_channels,
