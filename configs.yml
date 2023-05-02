@@ -218,7 +218,7 @@ local_discrete:
   cell_embed_size: 600
   dyn_discrete: 32
 
-  precision: 16
+  precision: 32
 
   
 

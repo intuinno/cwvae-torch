@@ -118,6 +118,7 @@ class CWVAE(nn.Module):
         self._levels = configs.levels
         self._tmp_abs_factor = configs.tmp_abs_factor
         self._discrete = configs.dyn_discrete
+        self.pre_loss = nn.MSELoss()
         
     def hierarchical_encode(self,
                             obs):
@@ -300,6 +301,7 @@ class CWVAE(nn.Module):
                 
                 for level in range(1, self._levels):
                     recon_loss = F.binary_cross_entropy(recons[level-1], recon_targets[level-1], reduction = 'sum')
+                    # recon_loss = self.pre_loss(recons[level-1], recon_targets[level-1])
                     loss = recon_loss 
                     # self.pre_opt[str(level)].zero_grad()
                     
