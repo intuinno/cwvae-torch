@@ -319,9 +319,11 @@ class CWVAE(nn.Module):
     def pre_eval(self, data):
         with torch.no_grad():
             recons, embeddings, recon_targets = self.hierarchical_pre_encode(data)
+            recon_loss_list = []
             for level in range(1, self._levels):
                 recon_loss = F.binary_cross_entropy(recons[level-1], recon_targets[level-1], reduction = 'sum')
-                loss = recon_loss 
+                loss = recon_loss
+                recon_loss_list.append(loss) 
             # metrics[f'recon_loss_{level}'] = to_np(recon_loss)
             # metrics[f'loss_{level}'] = to_np(loss)
         num_gifs = 6
@@ -333,7 +335,7 @@ class CWVAE(nn.Module):
         layer2_recon = layer2_recon[:, :truth.shape[1], :, :, :]
         return_video = torch.cat([truth, layer1_recon, layer2_recon], 2)
         # return_video = (return_video * 255).to(dtype=torch.uint8)
-        return to_np(return_video), recon_loss
+        return to_np(return_video), recon_loss_list
                       
         
     def pred(self, data, num_initial=16):

@@ -52,6 +52,21 @@
             ]
         },
         {
+            "name": "pretrain",
+            "type": "python", 
+            "request": "launch", 
+            "program": "${workspaceFolder}/train.py",
+            "console": "integratedTerminal",
+            "justMyCode": true, 
+            "args": [
+                "--configs", "defaults",  "pretrain",
+                "--exp_name", "debug",
+                "--levels", "3",
+                "--device", "cpu",
+                // "--load_model", "logs/mmnist/3level-discrete_20230412_161938/latest_model.pt"
+            ]
+        },
+        {
             "name": "eval mmnist",
             "type": "python", 
             "request": "launch", 

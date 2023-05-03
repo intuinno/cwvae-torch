@@ -100,14 +100,21 @@ if __name__ == "__main__":
         print (f"Evaluating ... ") 
         logger.step = epoch
         if epoch % configs.eval_every == 0:
-            x = next(iter(val_dataloader))
-            openl, recon_loss = model.pre_eval(x.to(configs.device))
-            logger.video('pre_video', openl)
-            logger.scalar('pre_video_nll', recon_loss)
-            logger.write(fps=True)
+            pre_level1_recon_loss, pre_level2_recon_loss = [], [] 
+            for i, x in enumerate(tqdm(val_dataloader)):
+            # x = next(iter(val_dataloader))
+                openl, recon_loss_list = model.pre_eval(x.to(configs.device))
+                if i == 0:
+                    logger.video('pre_video', openl)
+                pre_level1_recon_loss.append(recon_loss_list[0])
+                pre_level2_recon_loss.append(recon_loss_list[1])
+            pre_level1_recon_loss_mean = np.mean(pre_level1_recon_loss)
+            pre_level2_recon_loss_mean = np.mean(pre_level2_recon_loss)
+            logger.scalar('pre_video_nll_level1', pre_level1_recon_loss_mean)
+            logger.scalar('pre_video_nll_level2', pre_level2_recon_loss_mean)
         
         print(f"Training ...")
-        if epoch < 50: 
+        if epoch < configs.level1_pretrain: 
             train_level = 2
         else:
             train_level = 3
