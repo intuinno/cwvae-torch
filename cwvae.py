@@ -323,7 +323,7 @@ class CWVAE(nn.Module):
             for level in range(1, self._levels):
                 recon_loss = F.binary_cross_entropy(recons[level-1], recon_targets[level-1], reduction = 'sum')
                 loss = recon_loss
-                recon_loss_list.append(loss) 
+                recon_loss_list.append(to_np(loss)) 
             # metrics[f'recon_loss_{level}'] = to_np(recon_loss)
             # metrics[f'loss_{level}'] = to_np(loss)
         num_gifs = 6
