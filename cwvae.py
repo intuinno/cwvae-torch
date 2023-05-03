@@ -327,7 +327,8 @@ class CWVAE(nn.Module):
         num_gifs = 6
         truth = recon_targets[0][:num_gifs]  
         layer1_recon = recons[0][:num_gifs] 
-        layer2_recon = self.pre_layers['1'].decode(recons[1][:num_gifs]) 
+        emb = recons[1] * 2.0 -1.0 
+        layer2_recon = self.pre_layers['1'].decode(emb[:num_gifs]) 
         layer2_recon = self.postprocess(layer2_recon)
         layer2_recon = layer2_recon[:, :truth.shape[1], :, :, :]
         return_video = torch.cat([truth, layer1_recon, layer2_recon], 2)
