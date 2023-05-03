@@ -107,7 +107,7 @@ if __name__ == "__main__":
             logger.write(fps=True)
         
         print(f"Training ...")
-        if epoch < 10: 
+        if epoch < 50: 
             train_level = 2
         else:
             train_level = 3
