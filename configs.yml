@@ -277,7 +277,7 @@ pretrain:
   level1_pretrain: 50
   pre_encoder_num_epochs: 0
   # Summary
-  eval_every: 5
+  eval_every: 1
 
 mineRL_e2e:
   # MODEL

@@ -231,7 +231,6 @@ class CWVAE(nn.Module):
         b, t, c, w, h = data.shape
         num_imagine = t - num_initial
         data = self.preprocess(data)
-        truth = data + 0.5 
         obs = data[:,:num_initial]
         embed, _ = self.hierarchical_encode(obs)
         posteriors, _, _, _, feats = self.hierarchical_observe(embed) 
