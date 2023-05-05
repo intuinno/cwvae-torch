@@ -236,7 +236,8 @@ class CWVAE(nn.Module):
         embed, _ = self.hierarchical_encode(obs)
         posteriors, _, _, _, feats = self.hierarchical_observe(embed) 
          
-        initial_decode = self.layers[0]['decoder'](feats[0]).mode() + 0.5
+        initial_decode = self.layers[0]['decoder'](feats[0]).mode()
+        initial_decode = self.postprocess(initial_decode)
 
         empty_action = torch.empty(b, num_imagine, 0).to(self.device)
         init_states = []
@@ -248,8 +249,9 @@ class CWVAE(nn.Module):
         pred_obs = self.layers[0]['decoder'](feat)
         nll = -pred_obs.log_prob(data[:, num_initial:])
         recon_loss = nll.mean()
-        openl = self.layers[0]['decoder'](feat).mode() + 0.5
-        openl = np.clip(to_np(openl), 0, 1)
+        openl = self.layers[0]['decoder'](feat).mode() 
+        openl = self.postprocess(openl)
+        # openl = np.clip(to_np(openl), 0, 1)
         return openl, recon_loss, initial_decode
 
         
@@ -258,7 +260,7 @@ class CWVAE(nn.Module):
         openl, recon_loss, initial_decode = self.pred(data, num_initial=num_initial)
         num_gifs = 6
         data = self.preprocess(data)
-        truth = data[:num_gifs] + 0.5 
+        truth = self.postprocess(data[:num_gifs])  
         openl = torch.Tensor(openl).to(self.device)
         model = torch.cat([initial_decode,  openl], 1)[:num_gifs]
         diff = (model - truth + 1) / 2

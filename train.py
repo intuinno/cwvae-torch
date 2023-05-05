@@ -166,9 +166,9 @@ if __name__ == "__main__":
         if epoch % configs.backup_model_every == 0:
             torch.save(checkpoint, exp_logdir / f'state_{epoch}.pt')
 
-        print("PreTraining complete.")
+    print("PreTraining complete.")
 
-for epoch in range(configs.num_epochs):
+    for epoch in range(configs.num_epochs):
         #Write evaluation summary
         print(f'======== Epoch {epoch} / {configs.num_epochs} ==========')
         now = datetime.now(tz)
@@ -213,6 +213,6 @@ for epoch in range(configs.num_epochs):
         if epoch % configs.backup_model_every == 0:
             torch.save(checkpoint, exp_logdir / f'state_{epoch}.pt')
 
-        print("PreTraining complete.")
+    print("Training complete.")
 
 
