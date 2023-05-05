@@ -251,7 +251,7 @@ pretrain:
   cell_deter_size: 600
   cell_embed_size: 600
   dyn_discrete: 32
-
+  pre_encoder_model: 'model/pre_encoder.pt'
   precision: 32
 
   
@@ -272,7 +272,7 @@ pretrain:
   batch_size: 128
   num_epochs: 300
   level1_pretrain: 50
-
+  pre_encoder_num_epochs: 0
   # Summary
   eval_every: 5
 

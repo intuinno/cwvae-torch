@@ -8,6 +8,7 @@ from torch import distributions as torchd
 import tools
 import einops
 from typing import Union
+from einops.layers.torch import Rearrange, Reduce
 
 Activation = Union[str, nn.Module]
 
@@ -344,7 +345,7 @@ class HierarchicalEncoder(nn.Module):
 
 class ConvEncoder(nn.Module):
 
-  def __init__(self, channels=3,
+  def __init__(self, emb_dim, channels=3,
                depth=32, act=nn.ReLU, kernels=(4, 4, 4, 4)):
     super(ConvEncoder, self).__init__()
     self._act = act
@@ -360,15 +361,18 @@ class ConvEncoder(nn.Module):
       depth = 2 ** i * self._depth
       layers.append(nn.Conv2d(inp_dim, depth, kernel, 2))
       layers.append(act())
+    layers.append(Rearrange('b c h w -> b (c h w)'))  
+    
+    layers.append(nn.LazyLinear (emb_dim))
     self.layers = nn.Sequential(*layers)
 
   def __call__(self, obs):
-    x = einops.rearrange(obs, 'b t h w c -> (b t) c h w')
+    x = einops.rearrange(obs, 'b h w c -> b  c h w')
     x = self.layers(x)
-    x = einops.rearrange(x, '(b t) c h w -> b c t h w', b=obs.shape[0])
+    # x = einops.rearrange(x, 'b c h w -> b (c h w)', b=obs.shape[0])
     return x  
  
-class Conv3dVAE(nn.Module):
+class Conv3dAE(nn.Module):
   
   def __init__(self, channels_factor=4, 
                num_conv_layers=2, 
@@ -379,7 +383,7 @@ class Conv3dVAE(nn.Module):
                input_height=64,
                input_channels=1,
                temp_abs_factor=4):
-    super(Conv3dVAE, self).__init__()
+    super(Conv3dAE, self).__init__()
     
     c_hid = channels_factor * input_channels 
     
@@ -408,8 +412,6 @@ class Conv3dVAE(nn.Module):
         nn.Tanh(),  # The input images is scaled between -1 and 1, hence the output has to be bounded as well
     )
     
-    
-    
   def forward(self, x):
     # Assume x is (b t h w c)
     x = einops.rearrange(x, 'b t h w c -> b c t h w' ) 
@@ -425,30 +427,83 @@ class Conv3dVAE(nn.Module):
     recon = self.decoder(z)
     recon = einops.rearrange(recon, 'b c t h w -> b t h w c')
     return recon 
-      
     
-      
-    
-class Conv3dEncoder(nn.Module):
+  def encode(self, x):
+    # Assume x is (b t h w c)
+    x = einops.rearrange(x, 'b t h w c -> b c t h w')
+    z = self.encoder(x)
+    z = einops.rearrange(z, 'b c t h w -> b t h w c ')
+    return z
+
+class LocalConvEncoder(nn.Module):
   
-  def __init__(self, channels=256, act=nn.ReLU):
-    super(Conv3dEncoder, self).__init__()
-    self._act = act
+  def __init__(self, 
+               output_dim,
+               channels_factor=4, 
+               act=nn.GELU,
+               kernels=(3,3,3),
+               stride=(2,2,2),
+               input_width=64,
+               input_height=64,
+               input_channels=1,
+               temp_abs_factor=4):
+    super(LocalConvEncoder, self).__init__()
     
-    layers = []
-    layers.append(nn.Conv3d(channels, channels, (2,1,1), 
-                            stride=(2,1,1)))
-    layers.append(nn.Conv3d(channels, channels, (2,1,1), 
-                            stride=(2,1,1)))
-    layers.append(act())
-    self.layers = nn.Sequential(*layers)
+    c_hid = channels_factor * input_channels 
+    cnn_output_dim = input_width * input_height * input_channels //4
+    
+    self.encoder = nn.Sequential(
+        nn.Conv2d(input_channels, c_hid, kernel_size=3, padding=1, stride=2),  # 64x64 => 32x32
+        act(),
+        nn.Conv2d(c_hid, c_hid, kernel_size=3, padding=1),
+        act(),
+        nn.Conv2d(c_hid, channels_factor * c_hid, kernel_size=3, padding=1, stride=2),  # 32x32 => 16x16
+        act(),
+        nn.Conv2d(channels_factor * c_hid, channels_factor * c_hid, kernel_size=3, padding=1),
+        act(),
+        Rearrange('b c h w -> b (c h w)'),
+        nn.Linear(cnn_output_dim, output_dim )
+        )
+    
+  def forward(self, x):
+    # Assume x is (b t h w c)
+    x = einops.rearrange(x, 'b h w c -> b c h w')
+    z = self.encoder(x)
+    # z = einops.rearrange(z, 'b c h w -> b h w c ')
+    return z
   
-  def __call__(self, obs):
-    x = self.layers(obs)
-    return x
-    
-    
-    
+class LocalConvDecoder(nn.Module):
+  
+  def __init__(self, shape=(4, 16, 16), feat_size=232, act=nn.ReLU):
+    super(LocalConvDecoder, self).__init__()
+    self._shape = shape
+    self.channels, self.height, self.width = shape
+    cnnt_layers = []
+    self.linear_layer = nn.Linear(feat_size, self.channels  * self.width * self.height // 4)
+    self.cnnt_layers = nn.Sequential(
+        nn.ConvTranspose2d(
+            self.channels * 4, self.channels *2, kernel_size=3, output_padding=1, padding=1, stride=2
+        ),  # 16x16 => 32x32
+        act(),
+        nn.Conv2d( self.channels*2,  self.channels*2, kernel_size=3, padding=1),
+        act(),
+        nn.ConvTranspose2d(self.channels*2, self.channels, kernel_size=3, output_padding=1, padding=1, stride=2),  # 32x32 => 64x64
+        act(),
+        nn.Conv2d(self.channels, self.channels, kernel_size=3, padding=1),
+        nn.Tanh(),  # The input images is scaled between -1 and 1, hence the output has to be bounded as well
+    )
+  
+  def __call__(self, features):
+    x = self.linear_layer(features)
+    x = einops.rearrange(x, 'b t (h w c) -> (b t) c h w', c=self.channels*4, h=self.height//4, w=self.width//4)
+    x = self.cnnt_layers(x)
+    mean = einops.rearrange(x, '(b t) c h w -> b t h w c', b = features.shape[0])
+    return tools.ContDist(torchd.independent.Independent(
+      torchd.normal.Normal(mean,1), len(self._shape)
+    ))
+      
+  
+
 
 class ConvDecoder(nn.Module):
 
@@ -499,31 +554,6 @@ class ConvDecoder(nn.Module):
     mean = mean.permute(0, 1, 3, 4, 2)
     return tools.ContDist(torchd.independent.Independent(
       torchd.normal.Normal(mean, 1), len(self._shape)))
-
-class Conv3dDecoder(nn.Module):
-  
-  def __init__(self, shape=(256, 2, 2), feat_size=232, act=nn.ReLU):
-    super(Conv3dDecoder, self).__init__()
-    self._shape = shape
-    self.channels, self.height, self.width = shape
-    cnnt_layers = []
-    self.linear_layer = nn.Linear(feat_size, self.channels * self.width * self.height)
-    cnnt_layers.append(nn.ConvTranspose3d(self.channels, self.channels, (2,1,1), stride=(2,1,1)))
-    cnnt_layers.append(nn.ConvTranspose3d(self.channels, self.channels, (2,1,1), stride=(2,1,1)))
-    self.cnnt_layers = nn.Sequential(*cnnt_layers)
-  
-  def __call__(self, features):
-    x = self.linear_layer(features)
-    x = einops.rearrange(x, 'b t (h w c) -> b c t h w', c=self.channels, h=self.height, w=self.width)
-    x = self.cnnt_layers(x)
-    mean = einops.rearrange(x, 'b c t h w -> b t h w c')
-    return tools.ContDist(torchd.independent.Independent(
-      torchd.normal.Normal(mean,1), len(self._shape)
-    ))
-      
-  
-    
-    
 
 class DenseHead(nn.Module):
 

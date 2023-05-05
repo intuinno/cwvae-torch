@@ -76,10 +76,20 @@ if __name__ == "__main__":
 
     # Build model
     model = CWVAE(configs).to(configs.device)
-    count_parameters(model)
+    
     print(f"========== Using {configs.device} device ===================")
 
     # Load model if args.load_model is not none
+    if configs.pre_encoder_model is not None:
+        model_path = pathlib.Path(configs.pre_encoder_model).expanduser()
+        print(f"========= Loading Pretrained encoder from {model_path}")
+        checkpoint = torch.load(model_path, map_location=torch.device(configs.device))
+        new_dict = checkpoint['model_state_dict'].copy()
+        for param in checkpoint['model_state_dict']:
+            if 'pre_layers' not in param:
+                new_dict.pop(param)
+        model.load_state_dict(new_dict, strict=False)
+    
     if args.load_model is not None:
         model_path = pathlib.Path(args.load_model).expanduser()
         print(f"========== Loading saved model from {model_path} ===========")
@@ -90,10 +100,10 @@ if __name__ == "__main__":
     logger = tools.Logger(exp_logdir, 0)
     metrics = {}
 
-    for epoch in range(configs.num_epochs):
-            
+
+    for epoch in range(configs.pre_encoder_num_epochs):
         #Write evaluation summary
-        print(f'======== Epoch {epoch} / {configs.num_epochs} ==========')
+        print(f'======== Epoch {epoch} / {configs.pre_encoder_num_epochs} ==========')
         now = datetime.now(tz)
         current_time = now.strftime("%H:%M:%S")
         print("Current Time =", current_time)
@@ -112,6 +122,8 @@ if __name__ == "__main__":
             pre_level2_recon_loss_mean = np.mean(pre_level2_recon_loss)
             logger.scalar('pre_video_nll_level1', pre_level1_recon_loss_mean)
             logger.scalar('pre_video_nll_level2', pre_level2_recon_loss_mean)
+            if epoch == 0:
+                count_parameters(model)
         
         print(f"Training ...")
         if epoch < configs.level1_pretrain: 
@@ -147,6 +159,53 @@ if __name__ == "__main__":
         if epoch % configs.backup_model_every == 0:
             torch.save(checkpoint, exp_logdir / f'state_{epoch}.pt')
 
-    print("Training complete.")
+        print("PreTraining complete.")
+
+for epoch in range(configs.num_epochs):
+        #Write evaluation summary
+        print(f'======== Epoch {epoch} / {configs.num_epochs} ==========')
+        now = datetime.now(tz)
+        current_time = now.strftime("%H:%M:%S")
+        print("Current Time =", current_time)
+        print (f"Evaluating ... ") 
+        logger.step = epoch
+        if epoch % configs.eval_every == 0:
+            x = next(iter(val_dataloader))
+            openl, recon_loss = model.video_pred(x.to(configs.device))
+            logger.video('eval_openl', openl)
+            logger.scalar('eval_video_nll', recon_loss)
+            logger.write(fps=True)
+        
+        print(f"Training ...")
+        for i, x in enumerate(tqdm(train_dataloader)):
+            x = x.to(configs.device)
+            met = model.local_train(x)
+            for name, values in met.items():
+                if not name in metrics.keys():
+                    metrics[name] = [values]
+                else:
+                    metrics[name].append(values)
+        
+        # Write training summary 
+        for name,values in metrics.items():
+            logger.scalar(name, float(np.mean(values)))
+            metrics[name] = [] 
+        openl, recon_loss = model.video_pred(x)
+        logger.video('train_openl', openl)
+        logger.write(fps=True)
+        
+        checkpoint = {
+            'epoch': epoch+1, 
+            'model_state_dict': model.state_dict(),
+            # 'logger': logger, 
+        }
+        # Save Check point
+        if epoch % configs.save_model_every == 0:
+            torch.save(checkpoint, exp_logdir / 'latest_checkpoint.pt')
+        
+        if epoch % configs.backup_model_every == 0:
+            torch.save(checkpoint, exp_logdir / f'state_{epoch}.pt')
+
+        print("PreTraining complete.")
 
 

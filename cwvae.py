@@ -29,9 +29,9 @@ class CWVAE(nn.Module):
         self.step = 0
         self._use_amp = True if configs.precision==16 else False
         self.layers = nn.ModuleList()
+        self.pre_layers = nn.ModuleList()
         self.optimizers = []
-        self.pre_opt = {}
-        self.pre_layers = nn.ModuleDict()
+
         
         if configs.dyn_discrete:
             feat_size = configs.cell_stoch_size * configs.dyn_discrete + configs.cell_deter_size
@@ -41,20 +41,15 @@ class CWVAE(nn.Module):
         for level in range(configs.levels):
             layer = nn.ModuleDict()
             if level == 0:
+                self.pre_layers.append(nn.Identity())
                 layer['encoder'] = networks.ConvEncoder(
+                    configs.cell_embed_size,
                     channels=configs.channels,
                     depth=configs.cnn_depth,
                     act=getattr(nn,configs.act),
                     kernels=configs.encoder_kernels
                 )
                 shape = (*configs.img_size, configs.channels)
-                # Get the output embedding size of ConvEncoder by testing it
-                testObs = torch.rand(1, 1, *shape) 
-                testEmbed = layer['encoder'](testObs)
-                
-                embed_shape = layer['encoder'](testObs).shape
-                _, C, _, H, W = embed_shape
-                embed_size = embed_shape.numel()
                 
                 layer['decoder'] = networks.ConvDecoder(
                     feat_size, 
@@ -65,23 +60,22 @@ class CWVAE(nn.Module):
                     thin=configs.decoder_thin
                 ) 
             else:
-                layer['encoder'] = networks.Conv3dEncoder()
-                layer['decoder'] = networks.Conv3dDecoder(feat_size=feat_size,
-                                                          shape=(C, H, W))
                 input_channels = configs.channels * (16) ** (level-1)
-                self.pre_layers[str(level)] = networks.Conv3dVAE(input_channels=input_channels)
+                pre_encoder = networks.Conv3dAE(input_channels=input_channels)
+                self.pre_layers.append(pre_encoder)
                 
-                opt = tools.Optimizer(
-                    f'preAE_{level}',
-                    self.pre_layers[str(level)].parameters(),
-                    configs.lr, 
-                    eps=configs.eps, 
-                    clip=configs.clip_grad_norm_by,
-                    wd=configs.weight_decay,
-                    opt=configs.optimizer,
-                    use_amp=self._use_amp
-                )
-                self.pre_opt[str(level)] = opt
+                H = shape[0] // 4**(level)
+                W = shape[1] // 4**(level)
+                C = shape[2] * 16**(level)
+                inp_dim = H * W * C
+                layer['encoder'] = networks.LocalConvEncoder( configs.cell_embed_size,
+                                                            channels_factor=2,
+                                                            input_width=W,
+                                                            input_height=H,
+                                                            input_channels=C)
+                
+                layer['decoder'] = networks.LocalConvDecoder(feat_size=feat_size,
+                                                          shape=(C, H, W))
                     
             layer['dynamics'] = networks.RSSM(
                 stoch=configs.cell_stoch_size,
@@ -96,7 +90,7 @@ class CWVAE(nn.Module):
                 min_std=configs.cell_min_stddev,
                 cell=configs.dyn_cell,
                 num_actions=0,
-                embed=embed_size,
+                embed=configs.cell_embed_size,
                 device=configs.device
             )
                 
@@ -119,6 +113,16 @@ class CWVAE(nn.Module):
         self._tmp_abs_factor = configs.tmp_abs_factor
         self._discrete = configs.dyn_discrete
         self.pre_loss = nn.MSELoss()
+        self.pre_optimizers = tools.Optimizer(
+                    f'preAE_opt',
+                    self.pre_layers.parameters(),
+                    configs.lr, 
+                    eps=configs.eps, 
+                    clip=configs.clip_grad_norm_by,
+                    wd=configs.weight_decay,
+                    opt=configs.optimizer,
+                    use_amp=self._use_amp
+                ) 
         
     def hierarchical_encode(self,
                             obs):
@@ -133,41 +137,38 @@ class CWVAE(nn.Module):
     """ 
         outputs = []
         recon_target = []
+        B, _, _, _, _ = obs.shape
 
         for level in range(self._levels):
-           
-            embedding = self.layers[level]['encoder'](obs)
-            out = einops.rearrange(embedding, 'b c t h w -> b t h w c')
-            outputs.append(out)
             if level == 0:
-                target = obs
+                pre_embedding = self.preprocess(obs)
             else:
-                target = einops.rearrange(obs.clone().detach().requires_grad_(False), 'b c t h w -> b t h w c')
-            recon_target.append(target)
+                pre_embedding = self.pre_layers[level].encode(input)
+                pre_embedding = pre_embedding.clone().detach().requires_grad_(False)
+            pre_embedding = einops.rearrange(pre_embedding, 'b t h w c -> (b t) h w c')
+            embedding = self.layers[level]['encoder'](pre_embedding)
+            pre_embedding = einops.rearrange(pre_embedding, '(b t) h w c -> b t h w c', b=B)
+            embedding = einops.rearrange(embedding, '(b t) e -> b t e', b=B)
+            outputs.append(embedding)
+            recon_target.append(pre_embedding)
 
-            # embedding is [B, C, T, H, W] dimension
+            # embedding is [B, T, H, W, C] dimension
             # To reduce with _tmp_abs_factor^level, we need to pad T dimension of embedding
             # such that it is divisible with timesteps_to_merge
             timesteps_to_merge = self._tmp_abs_factor
             timesteps_to_pad = np.mod(
-                timesteps_to_merge - np.mod(embedding.shape[2], timesteps_to_merge),
+                timesteps_to_merge - np.mod(embedding.shape[1], timesteps_to_merge),
                 timesteps_to_merge
             )
-            pad = (0, 0, 0, 0, 0, timesteps_to_pad, 0, 0, 0, 0)
-            embedding = F.pad(embedding, pad, "constant", 0)
-            obs = embedding.clone().detach().requires_grad_(False)
-            
-        recon_target
-
+            pad = (0, 0, 0, 0, 0, 0, 0, timesteps_to_pad, 0, 0)
+            input = F.pad(pre_embedding, pad, "constant", 0)
         return outputs, recon_target
         
     def hierarchical_observe(
         self, inputs, actions=None, initial_state=None
     ):
-        b, t, h, w, c = inputs[0].shape
+        B, T, _ = inputs[0].shape
         
-
-            
         context = None # None for top level
         kl_balance = tools.schedule(self.configs.kl_balance, self.step)
         kl_free = tools.schedule(self.configs.kl_free, self.step)
@@ -178,9 +179,9 @@ class CWVAE(nn.Module):
 
         for level in reversed(range(self._levels)):
             if actions==None:
-                empty_action = torch.empty(b, t, 0).to(self.device)
+                empty_action = torch.empty(B, T, 0).to(self.device)
                 actions = empty_action 
-            inp = einops.rearrange(inputs[level], 'b t h w c -> b t (h w c)')
+            inp = inputs[level]
             post, prior = self.layers[level]['dynamics'].observe(inp, context, actions)
             kl_loss, kl_value = self.layers[level]['dynamics'].kl_loss(
                 post, prior, self.configs.kl_forward, kl_balance, kl_free, kl_scale)
@@ -267,11 +268,9 @@ class CWVAE(nn.Module):
     
 
     def local_train(self, obs):
-        
         metrics = {}
         with tools.RequiresGrad(self):
             with torch.cuda.amp.autocast(self._use_amp):
-                obs = self.preprocess(obs)
                 embed, recon_target = self.hierarchical_encode(obs)
                 posteriors, priors, kl_losses, kl_values, feats = self.hierarchical_observe(embed)
 
