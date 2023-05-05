@@ -251,7 +251,10 @@ pretrain:
   cell_deter_size: 600
   cell_embed_size: 600
   dyn_discrete: 32
+  pre_encoder_source_model: 'None'
+  # pre_encoder_source_model: 'model/pre_encoder_source_model.pt'
   pre_encoder_model: 'model/pre_encoder.pt'
+  # pre_encoder_model: 'None'
   precision: 32
 
   

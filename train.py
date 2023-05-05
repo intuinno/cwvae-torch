@@ -80,14 +80,21 @@ if __name__ == "__main__":
     print(f"========== Using {configs.device} device ===================")
 
     # Load model if args.load_model is not none
-    if configs.pre_encoder_model is not None:
+    if configs.pre_encoder_model != 'None':
         model_path = pathlib.Path(configs.pre_encoder_model).expanduser()
+        print(f"========= Loading Pretrained encoder from {model_path}")
+        checkpoint = torch.load(model_path, map_location=torch.device(configs.device))
+        model.load_state_dict(checkpoint, strict=False) 
+    elif configs.pre_encoder_source_model != 'None':
+        model_path = pathlib.Path(configs.pre_encoder_source_model).expanduser()
         print(f"========= Loading Pretrained encoder from {model_path}")
         checkpoint = torch.load(model_path, map_location=torch.device(configs.device))
         new_dict = checkpoint['model_state_dict'].copy()
         for param in checkpoint['model_state_dict']:
             if 'pre_layers' not in param:
                 new_dict.pop(param)
+        new_model_path = model_path.parent / 'pre_encoder.pt'
+        torch.save(new_dict, new_model_path)
         model.load_state_dict(new_dict, strict=False)
     
     if args.load_model is not None:
