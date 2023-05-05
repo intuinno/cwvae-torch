@@ -265,7 +265,7 @@ class CWVAE(nn.Module):
         diff = (model - truth + 1) / 2
         return_video = torch.cat([truth, model, diff], 2) 
         # return_video = (return_video * 255).to(dtype=torch.uint8)
-        return to_np(return_video), recon_loss
+        return to_np(return_video), to_np(recon_loss)
     
 
     def local_train(self, obs):
