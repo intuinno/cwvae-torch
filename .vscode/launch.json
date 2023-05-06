@@ -61,7 +61,7 @@
             "args": [
                 "--configs", "defaults",  "pretrain",
                 "--exp_name", "debug",
-                "--levels", "3",
+                "--levels", "1",
                 "--device", "cpu",
                 // "--load_model", "logs/mmnist/3level-discrete_20230412_161938/latest_model.pt"
             ]

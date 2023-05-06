@@ -113,7 +113,8 @@ class CWVAE(nn.Module):
         self._tmp_abs_factor = configs.tmp_abs_factor
         self._discrete = configs.dyn_discrete
         self.pre_loss = nn.MSELoss()
-        self.pre_optimizers = tools.Optimizer(
+        if configs.levels > 1:
+            self.pre_optimizers = tools.Optimizer(
                     f'preAE_opt',
                     self.pre_layers.parameters(),
                     configs.lr, 
