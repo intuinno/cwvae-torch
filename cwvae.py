@@ -342,7 +342,7 @@ class CWVAE(nn.Module):
     def pred(self, data, num_initial=16):
         b, t, c, w, h = data.shape
         num_imagine = t - num_initial
-        data = self.preprocess(data)
+        # data = self.preprocess(data)
         truth = data + 0.5 
         obs = data[:,:num_initial]
         embed, _ = self.hierarchical_encode(obs)
