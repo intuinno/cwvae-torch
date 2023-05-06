@@ -247,10 +247,10 @@ pretrain:
   dec_stddev: 1.0
   enc_dense_hidden_size: 1000
   cell_type: RSSMCell
-  cell_stoch_size: 32
-  cell_deter_size: 600
-  cell_embed_size: 600
-  dyn_discrete: 32
+  cell_stoch_size: 20
+  cell_deter_size: 200
+  cell_embed_size: 200
+  dyn_discrete: 0
   pre_encoder_source_model: 'None'
   # pre_encoder_source_model: 'model/pre_encoder_source_model.pt'
   pre_encoder_model: 'model/pre_encoder.pt'
