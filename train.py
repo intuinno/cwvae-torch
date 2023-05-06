@@ -101,7 +101,7 @@ if __name__ == "__main__":
         model_path = pathlib.Path(args.load_model).expanduser()
         print(f"========== Loading saved model from {model_path} ===========")
         checkpoint = torch.load(model_path)
-        model.load_state_dict(checkpoint)
+        model.load_state_dict(checkpoint['model_state_dict'])
 
     # Build logger
     logger = tools.Logger(exp_logdir, 0)
