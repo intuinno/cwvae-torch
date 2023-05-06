@@ -114,7 +114,7 @@ class CWVAE(nn.Module):
         self._discrete = configs.dyn_discrete
         self.pre_loss = nn.MSELoss()
         if configs.levels > 1:
-            self.pre_optimizers = tools.Optimizer(
+            self.pre_opt = tools.Optimizer(
                     f'preAE_opt',
                     self.pre_layers.parameters(),
                     configs.lr, 
@@ -122,8 +122,10 @@ class CWVAE(nn.Module):
                     clip=configs.clip_grad_norm_by,
                     wd=configs.weight_decay,
                     opt=configs.optimizer,
-                    use_amp=self._use_amp
+                    use_amp=False
                 ) 
+        test = torch.rand((4,16,64,64,1))
+        self.hierarchical_encode(test)
         
     def hierarchical_encode(self,
                             obs):
@@ -296,25 +298,20 @@ class CWVAE(nn.Module):
     def pre_train(self, obs, train_level=2):
         metrics = {}
         with tools.RequiresGrad(self):
-            with torch.cuda.amp.autocast(self._use_amp):
+            # with torch.cuda.amp.autocast(self._use_amp):
 
-                recons, embeddings, recon_targets = self.hierarchical_pre_encode(obs)
+            recons, embeddings, recon_targets = self.hierarchical_pre_encode(obs)
+            
+            loss = 0 
+            for level in range(1, train_level):
+                recon_loss = F.binary_cross_entropy(recons[level-1], recon_targets[level-1], reduction = 'sum')
+                loss += recon_loss 
+                metrics[f'recon_loss_{level}'] = to_np(recon_loss)
                 
-                for level in range(1, train_level):
-                    recon_loss = F.binary_cross_entropy(recons[level-1], recon_targets[level-1], reduction = 'sum')
-                    # recon_loss = self.pre_loss(recons[level-1], recon_targets[level-1])
-                    loss = recon_loss 
-                    # self.pre_opt[str(level)].zero_grad()
-                    
-                    metrics[f'pre_grad_norm_{level}'] = self.pre_opt[str(level)](loss, self.pre_layers[str(level)].parameters())
-                    if DEBUG:
-                        dot = make_dot(recon_loss, params=dict(self.pre_layers.named_parameters()))
-                        dot.render(f"graph_{level}.pdf")
-                    # loss.backward()
-                    # self.pre_opt[str(level)].step()
-                    metrics[f'recon_loss_{level}'] = to_np(recon_loss)
-                    # metrics[f'kl_loss_{level}'] = to_np(kl_loss)
-                    metrics[f'loss_{level}'] = to_np(loss)
+            metrics[f'pre_grad_norm_pre_encder'] = self.pre_opt(loss, self.pre_layers.parameters())
+            if DEBUG:
+                dot = make_dot(recon_loss, params=dict(self.pre_layers.named_parameters()))
+                dot.render(f"graph_{level}.pdf")
         return metrics
                     
     def pre_eval(self, data):
@@ -331,7 +328,7 @@ class CWVAE(nn.Module):
         truth = recon_targets[0][:num_gifs]  
         layer1_recon = recons[0][:num_gifs] 
         emb = recons[1] * 2.0 -1.0 
-        layer2_recon = self.pre_layers['1'].decode(emb[:num_gifs]) 
+        layer2_recon = self.pre_layers[1].decode(emb[:num_gifs]) 
         layer2_recon = self.postprocess(layer2_recon)
         layer2_recon = layer2_recon[:, :truth.shape[1], :, :, :]
         return_video = torch.cat([truth, layer1_recon, layer2_recon], 2)
@@ -377,7 +374,7 @@ class CWVAE(nn.Module):
     """ 
     
                     
-        embeddings, recons, recon_targets, dists = [], [], [], []
+        embeddings, recons, recon_targets = [], [], []
         embedding = self.preprocess(obs) 
         for level in range(1, self._levels):
             # embedding is [B, T, H, W, C] dimension
@@ -392,7 +389,7 @@ class CWVAE(nn.Module):
             embedding = F.pad(embedding, pad, "constant", 0)
             obs = embedding.clone().detach().requires_grad_(False)
            
-            recon, embedding = self.pre_layers[str(level)].forward(obs)
+            recon, embedding = self.pre_layers[level].forward(obs)
             recon = self.postprocess(recon)
             obs = self.postprocess(obs)
             recons.append(recon)

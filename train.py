@@ -129,8 +129,6 @@ if __name__ == "__main__":
             pre_level2_recon_loss_mean = np.mean(pre_level2_recon_loss)
             logger.scalar('pre_video_nll_level1', pre_level1_recon_loss_mean)
             logger.scalar('pre_video_nll_level2', pre_level2_recon_loss_mean)
-            if epoch == 0:
-                count_parameters(model)
         
         print(f"Training ...")
         if epoch < configs.level1_pretrain: 
@@ -178,17 +176,25 @@ if __name__ == "__main__":
         logger.step = epoch
         if epoch % configs.eval_every == 0:
             print (f"Evaluating ... ") 
-            recon_loss_list = []
-            for i, x in enumerate(tqdm(val_dataloader)):
+            # recon_loss_list = []
+            # for i, x in enumerate(tqdm(val_dataloader)):
 
-                openl, recon_loss = model.video_pred(x.to(configs.device))
-                if i == 0:
-                    logger.video('eval_openl', openl)
-                recon_loss_list.append(recon_loss) 
-            recon_loss_mean = np.mean(recon_loss_list)
-            logger.scalar('eval_video_nll', recon_loss_mean)
-            if epoch == 0:
-                count_parameters(model)
+            #     openl, recon_loss = model.video_pred(x.to(configs.device))
+            #     if i == 0:
+            #         logger.video('eval_openl', openl)
+            #     recon_loss_list.append(recon_loss) 
+            # recon_loss_mean = np.mean(recon_loss_list)
+            # logger.scalar('eval_video_nll', recon_loss_mean)
+            # if epoch == 0:
+            #     count_parameters(model)
+            
+            x = next(iter(val_dataloader))
+            openl, recon_loss = model.video_pred(x.to(configs.device))
+            logger.video('eval_openl', openl)
+            logger.scalar('eval_video_nll', recon_loss)
+            logger.write(fps=True)
+            openl, recon_loss_list = model.pre_eval(x.to(configs.device))
+            logger.video('pre_video', openl)
         
         print(f"Training ...")
         for i, x in enumerate(tqdm(train_dataloader)):
