@@ -239,12 +239,12 @@ class CWVAE(nn.Module):
         image_list = []
         recon_loss_list = []
         for level in range(self._levels):
-            recon = self.layers[level]['decoder'](feat_list[level].mode())
-            pred_obs = self.layers[level]['decoder'](feat_list[level])
-            nll = -pred_obs.log_prob(data)
-            nll = to_np(nll).mean() 
-            recon_loss_list.append(nll)
+            recon = self.layers[level]['decoder'](feat_list[level]).mode()
             recon_image = self.pre_decode(recon, level=level)
+            recon_image = recon_image[:, :data.shape[1]] 
+            mse = F.mse_loss( recon_image, data)
+            mse = to_np(mse) 
+            recon_loss_list.append(mse)
             image_list.append(recon_image) 
         return image_list, recon_loss_list
 
@@ -274,11 +274,12 @@ class CWVAE(nn.Module):
         num_gifs = 6
         data = self.pre_layers[0].encode(data)
         truth = self.pre_layers[0].decode(data[:num_gifs])  
-        openl = torch.Tensor(openl).to(self.device)
+        openl = torch.cat(openl, 2)
+        initial_decode = torch.cat(initial_decode,2)
         model = torch.cat([initial_decode,  openl], 1)[:num_gifs]
         return_video = torch.cat([truth, model], 2) 
         # return_video = (return_video * 255).to(dtype=torch.uint8)
-        return to_np(return_video), to_np(recon_loss)
+        return to_np(return_video), recon_loss
     
 
     def local_train(self, obs, stop_level):
@@ -288,7 +289,7 @@ class CWVAE(nn.Module):
                 embed, recon_target = self.hierarchical_encode(obs)
                 posteriors, priors, kl_losses, kl_values, feats = self.hierarchical_observe(embed)
 
-                for level in reversed(range(self._levels, stop_level, -1)):
+                for level in reversed(range(self._levels-1, stop_level-1, -1)):
                     #Calulate reconstruction loss
                     pred_obs = self.layers[level]['decoder'](feats[level])
                     nll = -pred_obs.log_prob(recon_target[level])
@@ -325,17 +326,18 @@ class CWVAE(nn.Module):
         return metrics
                     
     def pre_eval(self, data):
+        _, T, _, _, _ = data.shape
         with torch.no_grad():
             recons, embeddings, recon_targets = self.hierarchical_pre_encode(data)
             recon_loss_list = []
             for level in range(1, self._levels):
-                recon_loss = F.binary_cross_entropy(recons[level-1], recon_targets[level-1], reduction = 'sum')
+                recon_loss = F.mse_loss(recons[level], recon_targets[level])
                 loss = recon_loss
                 recon_loss_list.append(to_np(loss)) 
         num_gifs = 6
         truth = recon_targets[0][:num_gifs]  
-        layer1_recon = self.pre_decode(recon_targets[1], level=1)[:num_gifs]
-        layer2_recon = self.pre_decode(recon_targets[2], level=2)[:num_gifs] 
+        layer1_recon = self.pre_decode(embeddings[1], level=1)[:num_gifs, :T ]
+        layer2_recon = self.pre_decode(embeddings[2], level=2)[:num_gifs, :T] 
         return_video = torch.cat([truth, layer1_recon, layer2_recon], 2)
         # return_video = (return_video * 255).to(dtype=torch.uint8)
         return to_np(return_video), recon_loss_list
@@ -354,7 +356,11 @@ class CWVAE(nn.Module):
                     
         embeddings, recons, recon_targets = [], [], []
         for level in range(0, self._levels):
+            recon_targets.append(obs) 
             recon, embedding = self.pre_layers[level].forward(obs)
+            recons.append(recon)
+            
+
             # embedding is [B, T, H, W, C] dimension
             # To reduce with _tmp_abs_factor^level, we need to pad T dimension of embedding
             # such that it is divisible with timesteps_to_merge
@@ -367,10 +373,8 @@ class CWVAE(nn.Module):
             embedding = F.pad(embedding, pad, "constant", 0)
             obs = embedding.clone().detach().requires_grad_(False)
            
-            recons.append(recon)
             embeddings.append(embedding)
-            recon_targets.append(obs) 
-
+           
         return recons, embeddings, recon_targets
         
 

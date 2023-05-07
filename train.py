@@ -192,7 +192,8 @@ if __name__ == "__main__":
             x = next(iter(val_dataloader))
             openl, recon_loss = model.video_pred(x.to(configs.device), video_layer=2)
             logger.video('eval_openl', openl)
-            logger.scalar('eval_video_nll', recon_loss)
+            for i, l in enumerate(recon_loss):
+                logger.scalar(f'eval_video_mse_{i}', l)
             logger.write(fps=True)
             openl, recon_loss_list = model.pre_eval(x.to(configs.device))
             logger.video('pre_video', openl)

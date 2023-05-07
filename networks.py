@@ -372,7 +372,7 @@ class ConvEncoder(nn.Module):
     # x = einops.rearrange(x, 'b c h w -> b (c h w)', b=obs.shape[0])
     return x  
 
-class preprocessAE:
+class preprocessAE(nn.Module):
   
   def encode(self, obs):
     # obs = obs.clone()
