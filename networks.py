@@ -371,6 +371,19 @@ class ConvEncoder(nn.Module):
     x = self.layers(x)
     # x = einops.rearrange(x, 'b c h w -> b (c h w)', b=obs.shape[0])
     return x  
+
+class preprocessAE:
+  
+  def preprocess(self, obs):
+    # obs = obs.clone()
+    obs = obs / 255.0 - 0.5 
+    obs = obs * 2.0
+    obs.to(self.device)
+    return obs
+
+  def postprocess(self, obs):
+    obs = obs / 2.0 + 0.5
+    return obs
  
 class Conv3dAE(nn.Module):
   

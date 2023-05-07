@@ -189,7 +189,7 @@ if __name__ == "__main__":
             #     count_parameters(model)
             
             x = next(iter(val_dataloader))
-            openl, recon_loss = model.video_pred(x.to(configs.device))
+            openl, recon_loss = model.video_pred(x.to(configs.device), video_layer=2)
             logger.video('eval_openl', openl)
             logger.scalar('eval_video_nll', recon_loss)
             logger.write(fps=True)

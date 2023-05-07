@@ -41,7 +41,7 @@ class CWVAE(nn.Module):
         for level in range(configs.levels):
             layer = nn.ModuleDict()
             if level == 0:
-                self.pre_layers.append(nn.Identity())
+                self.pre_layers.append(networks.preprocessAE())
                 layer['encoder'] = networks.ConvEncoder(
                     configs.cell_embed_size,
                     channels=configs.channels,
@@ -141,13 +141,10 @@ class CWVAE(nn.Module):
         outputs = []
         recon_target = []
         B, _, _, _, _ = obs.shape
+        input = obs
 
         for level in range(self._levels):
-            if level == 0:
-                pre_embedding = self.preprocess(obs)
-            else:
-                pre_embedding = self.pre_layers[level].encode(input)
-                pre_embedding = pre_embedding.clone().detach().requires_grad_(False)
+            pre_embedding = self.pre_layers[level].encode(input)
             pre_embedding = einops.rearrange(pre_embedding, 'b t h w c -> (b t) h w c')
             embedding = self.layers[level]['encoder'](pre_embedding)
             pre_embedding = einops.rearrange(pre_embedding, '(b t) h w c -> b t h w c', b=B)
@@ -165,6 +162,7 @@ class CWVAE(nn.Module):
             )
             pad = (0, 0, 0, 0, 0, 0, 0, timesteps_to_pad, 0, 0)
             input = F.pad(pre_embedding, pad, "constant", 0)
+            input = input.clone().detach().requires_grad_(False)
         return outputs, recon_target
         
     def hierarchical_observe(
@@ -230,16 +228,19 @@ class CWVAE(nn.Module):
             
         return feat
 
-    def pred(self, data, num_initial=16):
+    def pred(self, data, num_initial=16, video_layer=0):
         b, t, c, w, h = data.shape
         num_imagine = t - num_initial
-        data = self.preprocess(data)
+        initial_decode = []
+        openl = [] 
+        recon_loss = [] 
         obs = data[:,:num_initial]
         embed, _ = self.hierarchical_encode(obs)
         posteriors, _, _, _, feats = self.hierarchical_observe(embed) 
-         
-        initial_decode = self.layers[0]['decoder'](feats[0]).mode()
-        initial_decode = self.postprocess(initial_decode)
+        
+        for level in range(self._levels):
+            recon = self.layers[leve]['decoder'](feats[l].mode())
+        initial_decode = self.layers[0]['decoder'](feats[0]).mode() + 0.5
 
         empty_action = torch.empty(b, num_imagine, 0).to(self.device)
         init_states = []
@@ -251,15 +252,13 @@ class CWVAE(nn.Module):
         pred_obs = self.layers[0]['decoder'](feat)
         nll = -pred_obs.log_prob(data[:, num_initial:])
         recon_loss = nll.mean()
-        openl = self.layers[0]['decoder'](feat).mode() 
-        openl = self.postprocess(openl)
-        # openl = np.clip(to_np(openl), 0, 1)
+        openl = self.layers[0]['decoder'](feat).mode() + 0.5
+        openl = np.clip(to_np(openl), 0, 1)
         return openl, recon_loss, initial_decode
-
         
-    def video_pred(self, data):
+    def video_pred(self, data, video_layer=0):
         num_initial = self._tmp_abs_factor ** (self._levels-1)        
-        openl, recon_loss, initial_decode = self.pred(data, num_initial=num_initial)
+        openl, recon_loss, initial_decode = self.pred(data, num_initial=num_initial, video_layer=0)
         num_gifs = 6
         data = self.preprocess(data)
         truth = self.postprocess(data[:num_gifs])  
@@ -336,30 +335,7 @@ class CWVAE(nn.Module):
         return to_np(return_video), recon_loss_list
                       
         
-    def pred(self, data, num_initial=16):
-        b, t, c, w, h = data.shape
-        num_imagine = t - num_initial
-        # data = self.preprocess(data)
-        truth = data + 0.5 
-        obs = data[:,:num_initial]
-        embed, _ = self.hierarchical_encode(obs)
-        posteriors, _, _, _, feats = self.hierarchical_observe(embed) 
-         
-        initial_decode = self.layers[0]['decoder'](feats[0]).mode() + 0.5
 
-        empty_action = torch.empty(b, num_imagine, 0).to(self.device)
-        init_states = []
-        for level in range(self._levels):
-            init = {k: v[:,-1] for k, v in posteriors[level].items()}
-            init_states.append(init)
-
-        feat = self.hierarchical_imagine(empty_action, initial_state=init_states)
-        pred_obs = self.layers[0]['decoder'](feat)
-        nll = -pred_obs.log_prob(data[:, num_initial:])
-        recon_loss = nll.mean()
-        openl = self.layers[0]['decoder'](feat).mode() + 0.5
-        openl = np.clip(to_np(openl), 0, 1)
-        return openl, recon_loss, initial_decode
 
     def hierarchical_pre_encode(self,
                             obs):
@@ -398,16 +374,7 @@ class CWVAE(nn.Module):
 
         return recons, embeddings, recon_targets
         
-    def preprocess(self, obs):
-        # obs = obs.clone()
-        obs = obs / 255.0 - 0.5 
-        obs = obs * 2.0
-        obs.to(self.device)
-        return obs
 
-    def postprocess(self, obs):
-        obs = obs / 2.0 + 0.5
-        return obs
                 
         
 
