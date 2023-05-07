@@ -386,7 +386,7 @@ class preprocessAE:
 
   def forward(self, obs):
     z = self.encode(obs)
-    return decode(z), z
+    return self.decode(z), z
  
 class Conv3dAE(nn.Module):
   

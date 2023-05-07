@@ -20,6 +20,7 @@ from prettytable import PrettyTable
 # device = "cuda" if torch.cuda.is_available() else "cpu"
 # print(f"Using {device} device")
 
+
 def count_parameters(model):
     table = PrettyTable(["Modules", "Parameters"])
     total_params = 0
@@ -199,9 +200,9 @@ if __name__ == "__main__":
         print(f"Training ...")
         for i, x in enumerate(tqdm(train_dataloader)):
             x = x.to(configs.device)
-            if epoch < 100:
+            if epoch < 3:
                 stop_level = 2
-            elif epoch < 200:
+            elif epoch < 6:
                 stop_level = 1
             else:
                 stop_level = 0
