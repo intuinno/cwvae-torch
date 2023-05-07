@@ -210,11 +210,15 @@ class CWVAE(nn.Module):
         assert len(actions.shape) > 2, "actions need to be [B T A] shape. It is used to calculate total imagine steps"
         batch_size, num_imagine, _ = actions.shape
         context = None # None for top level
+        feat_list = []
 
         for level in reversed(range(self._levels)):
             num_steps = np.ceil(float(num_imagine)/(self._tmp_abs_factor**level))
             empty_action = torch.empty(batch_size, int(num_steps),0).to(self.device)
             prior = self.layers[level]['dynamics'].imagine(context, empty_action, initial_state[level])
+
+            feat = self.layers[level]['dynamics'].get_feat(prior)
+            feat_list.insert(0, feat)
 
             if self._discrete:
                 stoch = einops.rearrange(prior['stoch'], 'b t d f -> b t (d f)')
@@ -223,24 +227,35 @@ class CWVAE(nn.Module):
             context = torch.concat([prior['deter'], stoch], dim=-1) 
             context = einops.repeat(context, 'b t f -> b (t repeat) f', repeat=self._tmp_abs_factor)
 
-        # Get features for bottom layer
-        feat = self.layers[0]['dynamics'].get_feat(prior)
-            
-        return feat
+        return feat_list
+    
+    def pre_decode(self, emb, level=0):
+        dec = emb
+        for i in reversed(range(level+1)):
+            dec = self.pre_layers[i].decode(dec)
+        return dec
+        
+    def hierarchical_pre_decode(self, feat_list, data):
+        image_list = []
+        recon_loss_list = []
+        for level in range(self._levels):
+            recon = self.layers[level]['decoder'](feat_list[level].mode())
+            pred_obs = self.layers[level]['decoder'](feat_list[level])
+            nll = -pred_obs.log_prob(data)
+            nll = to_np(nll).mean() 
+            recon_loss_list.append(nll)
+            recon_image = self.pre_decode(recon, level=level)
+            image_list.append(recon_image) 
+        return image_list, recon_loss_list
 
     def pred(self, data, num_initial=16, video_layer=0):
         b, t, c, w, h = data.shape
         num_imagine = t - num_initial
-        initial_decode = []
-        openl = [] 
-        recon_loss = [] 
         obs = data[:,:num_initial]
         embed, _ = self.hierarchical_encode(obs)
-        posteriors, _, _, _, feats = self.hierarchical_observe(embed) 
-        
-        for level in range(self._levels):
-            recon = self.layers[leve]['decoder'](feats[l].mode())
-        initial_decode = self.layers[0]['decoder'](feats[0]).mode() + 0.5
+        posteriors, _, _, _, feat_list = self.hierarchical_observe(embed) 
+
+        initial_decode, _ = self.hierarchical_pre_decode(feat_list, obs)
 
         empty_action = torch.empty(b, num_imagine, 0).to(self.device)
         init_states = []
@@ -248,36 +263,32 @@ class CWVAE(nn.Module):
             init = {k: v[:,-1] for k, v in posteriors[level].items()}
             init_states.append(init)
 
-        feat = self.hierarchical_imagine(empty_action, initial_state=init_states)
-        pred_obs = self.layers[0]['decoder'](feat)
-        nll = -pred_obs.log_prob(data[:, num_initial:])
-        recon_loss = nll.mean()
-        openl = self.layers[0]['decoder'](feat).mode() + 0.5
-        openl = np.clip(to_np(openl), 0, 1)
-        return openl, recon_loss, initial_decode
+        feat_list = self.hierarchical_imagine(empty_action, initial_state=init_states)
+        openl, recon_loss_list = self.hierarchical_pre_decode(feat_list, data[:, num_initial:])
+        
+        return openl, recon_loss_list, initial_decode
         
     def video_pred(self, data, video_layer=0):
         num_initial = self._tmp_abs_factor ** (self._levels-1)        
         openl, recon_loss, initial_decode = self.pred(data, num_initial=num_initial, video_layer=0)
         num_gifs = 6
-        data = self.preprocess(data)
-        truth = self.postprocess(data[:num_gifs])  
+        data = self.pre_layers[0].encode(data)
+        truth = self.pre_layers[0].decode(data[:num_gifs])  
         openl = torch.Tensor(openl).to(self.device)
         model = torch.cat([initial_decode,  openl], 1)[:num_gifs]
-        diff = (model - truth + 1) / 2
-        return_video = torch.cat([truth, model, diff], 2) 
+        return_video = torch.cat([truth, model], 2) 
         # return_video = (return_video * 255).to(dtype=torch.uint8)
         return to_np(return_video), to_np(recon_loss)
     
 
-    def local_train(self, obs):
+    def local_train(self, obs, stop_level):
         metrics = {}
         with tools.RequiresGrad(self):
             with torch.cuda.amp.autocast(self._use_amp):
                 embed, recon_target = self.hierarchical_encode(obs)
                 posteriors, priors, kl_losses, kl_values, feats = self.hierarchical_observe(embed)
 
-                for level in range(self._levels):
+                for level in reversed(range(self._levels, stop_level, -1)):
                     #Calulate reconstruction loss
                     pred_obs = self.layers[level]['decoder'](feats[level])
                     nll = -pred_obs.log_prob(recon_target[level])
@@ -321,21 +332,13 @@ class CWVAE(nn.Module):
                 recon_loss = F.binary_cross_entropy(recons[level-1], recon_targets[level-1], reduction = 'sum')
                 loss = recon_loss
                 recon_loss_list.append(to_np(loss)) 
-            # metrics[f'recon_loss_{level}'] = to_np(recon_loss)
-            # metrics[f'loss_{level}'] = to_np(loss)
         num_gifs = 6
         truth = recon_targets[0][:num_gifs]  
-        layer1_recon = recons[0][:num_gifs] 
-        emb = recons[1] * 2.0 -1.0 
-        layer2_recon = self.pre_layers[1].decode(emb[:num_gifs]) 
-        layer2_recon = self.postprocess(layer2_recon)
-        layer2_recon = layer2_recon[:, :truth.shape[1], :, :, :]
+        layer1_recon = self.pre_decode(recon_targets[1], level=1)[:num_gifs]
+        layer2_recon = self.pre_decode(recon_targets[2], level=2)[:num_gifs] 
         return_video = torch.cat([truth, layer1_recon, layer2_recon], 2)
         # return_video = (return_video * 255).to(dtype=torch.uint8)
         return to_np(return_video), recon_loss_list
-                      
-        
-
 
     def hierarchical_pre_encode(self,
                             obs):
@@ -348,11 +351,10 @@ class CWVAE(nn.Module):
                 Each element is Un-flattened observations (videos) of shape BTHWC for 
                 (batch size, timesteps, height, width, channel ) 
     """ 
-    
                     
         embeddings, recons, recon_targets = [], [], []
-        embedding = self.preprocess(obs) 
-        for level in range(1, self._levels):
+        for level in range(0, self._levels):
+            recon, embedding = self.pre_layers[level].forward(obs)
             # embedding is [B, T, H, W, C] dimension
             # To reduce with _tmp_abs_factor^level, we need to pad T dimension of embedding
             # such that it is divisible with timesteps_to_merge
@@ -365,9 +367,6 @@ class CWVAE(nn.Module):
             embedding = F.pad(embedding, pad, "constant", 0)
             obs = embedding.clone().detach().requires_grad_(False)
            
-            recon, embedding = self.pre_layers[level].forward(obs)
-            recon = self.postprocess(recon)
-            obs = self.postprocess(obs)
             recons.append(recon)
             embeddings.append(embedding)
             recon_targets.append(obs) 

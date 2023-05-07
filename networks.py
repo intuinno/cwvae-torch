@@ -374,16 +374,19 @@ class ConvEncoder(nn.Module):
 
 class preprocessAE:
   
-  def preprocess(self, obs):
+  def encode(self, obs):
     # obs = obs.clone()
     obs = obs / 255.0 - 0.5 
     obs = obs * 2.0
-    obs.to(self.device)
     return obs
 
-  def postprocess(self, obs):
+  def decode(self, obs):
     obs = obs / 2.0 + 0.5
     return obs
+
+  def forward(self, obs):
+    z = self.encode(obs)
+    return decode(z), z
  
 class Conv3dAE(nn.Module):
   

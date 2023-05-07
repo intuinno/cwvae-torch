@@ -199,7 +199,13 @@ if __name__ == "__main__":
         print(f"Training ...")
         for i, x in enumerate(tqdm(train_dataloader)):
             x = x.to(configs.device)
-            met = model.local_train(x)
+            if epoch < 100:
+                stop_level = 2
+            elif epoch < 200:
+                stop_level = 1
+            else:
+                stop_level = 0
+            met = model.local_train(x, stop_level)
             for name, values in met.items():
                 if not name in metrics.keys():
                     metrics[name] = [values]
