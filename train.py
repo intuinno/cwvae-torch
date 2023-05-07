@@ -201,9 +201,9 @@ if __name__ == "__main__":
         print(f"Training ...")
         for i, x in enumerate(tqdm(train_dataloader)):
             x = x.to(configs.device)
-            if epoch < 3:
+            if epoch < 100:
                 stop_level = 2
-            elif epoch < 6:
+            elif epoch < 200:
                 stop_level = 1
             else:
                 stop_level = 0

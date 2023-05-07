@@ -277,7 +277,7 @@ pretrain:
   num_epochs: 300
   level1_pretrain: 50
   pre_encoder_num_epochs: 0
-  debug: True 
+  debug: False 
 
 
   # Summary
