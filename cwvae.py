@@ -319,7 +319,7 @@ class CWVAE(nn.Module):
             
             loss = 0 
             for level in range(1, train_level):
-                recon_loss = F.binary_cross_entropy(recons[level-1], recon_targets[level-1], reduction = 'sum')
+                recon_loss = F.mse_loss(recons[level-1], recon_targets[level-1])
                 loss += recon_loss 
                 metrics[f'recon_loss_{level}'] = to_np(recon_loss)
                 
