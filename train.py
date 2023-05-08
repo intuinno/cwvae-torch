@@ -202,7 +202,7 @@ if __name__ == "__main__":
         for i, x in enumerate(tqdm(train_dataloader)):
             x = x.to(configs.device)
             if epoch < 100:
-                stop_level = 2
+                stop_level = 0
             elif epoch < 200:
                 stop_level = 1
             else:

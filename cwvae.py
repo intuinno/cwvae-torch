@@ -296,6 +296,9 @@ class CWVAE(nn.Module):
                     recon_loss = nll.mean()
                     kl_loss = kl_losses[level]       
                     loss = kl_loss + recon_loss
+                    if DEBUG:
+                        dot = make_dot(recon_loss, params=dict(self.pre_layers.named_parameters()))
+                        dot.render(f"loss_graph_{level}.pdf")
                     metrics[f'recon_loss_{level}'] = to_np(recon_loss)
                     metrics[f'kl_loss_{level}'] = to_np(kl_loss)
                     metrics[f'loss_{level}'] = to_np(loss)
