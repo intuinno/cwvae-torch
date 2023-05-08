@@ -404,6 +404,7 @@ class Conv3dAE(nn.Module):
     c_hid = channels_factor * input_channels 
     
     self.encoder = nn.Sequential(
+      nn.BatchNorm3d(input_channels, affine=False), 
         nn.Conv3d(input_channels, c_hid, kernel_size=3, padding=1, stride=2),  # 64x64 => 32x32
         act(),
         nn.Conv3d(c_hid, c_hid, kernel_size=3, padding=1),
@@ -411,11 +412,12 @@ class Conv3dAE(nn.Module):
         nn.Conv3d(c_hid, channels_factor * c_hid, kernel_size=3, padding=1, stride=2),  # 32x32 => 16x16
         act(),
         nn.Conv3d(channels_factor * c_hid, channels_factor * c_hid, kernel_size=3, padding=1),
-        nn.Tanh(),
+        nn.BatchNorm3d(channels_factor*c_hid, affine=False)
         )
 
 
     self.decoder = nn.Sequential(
+      nn.BatchNorm3d(channels_factor*c_hid, affine=False),
         nn.ConvTranspose3d(
             channels_factor * c_hid, c_hid, kernel_size=3, output_padding=1, padding=1, stride=2
         ),  # 16x16 => 32x32
@@ -425,7 +427,7 @@ class Conv3dAE(nn.Module):
         nn.ConvTranspose3d(c_hid, input_channels, kernel_size=3, output_padding=1, padding=1, stride=2),  # 32x32 => 64x64
         act(),
         nn.Conv3d(input_channels, input_channels, kernel_size=3, padding=1),
-        nn.Tanh(),  # The input images is scaled between -1 and 1, hence the output has to be bounded as well
+        nn.BatchNorm3d(input_channels, affine=False)
     )
     
   def forward(self, x):
@@ -490,7 +492,7 @@ class LocalConvEncoder(nn.Module):
   
 class LocalConvDecoder(nn.Module):
   
-  def __init__(self, shape=(4, 16, 16), feat_size=232, act=nn.ReLU):
+  def __init__(self, shape=(4, 16, 16), feat_size=232, act=nn.GELU):
     super(LocalConvDecoder, self).__init__()
     self._shape = shape
     self.channels, self.height, self.width = shape
@@ -506,7 +508,7 @@ class LocalConvDecoder(nn.Module):
         nn.ConvTranspose2d(self.channels*2, self.channels, kernel_size=3, output_padding=1, padding=1, stride=2),  # 32x32 => 64x64
         act(),
         nn.Conv2d(self.channels, self.channels, kernel_size=3, padding=1),
-        nn.Tanh(),  # The input images is scaled between -1 and 1, hence the output has to be bounded as well
+        # nn.Tanh(),  # The input images is scaled between -1 and 1, hence the output has to be bounded as well
     )
   
   def __call__(self, features):
@@ -525,7 +527,7 @@ class ConvDecoder(nn.Module):
 
   def __init__(
       self, inp_depth,
-      depth=32, act=nn.ReLU, shape=(3, 64, 64), kernels=(5, 5, 6, 6),
+      depth=32, act=nn.GELU, shape=(3, 64, 64), kernels=(5, 5, 6, 6),
       thin=True):
     super(ConvDecoder, self).__init__()
     self._inp_depth = inp_depth
@@ -552,7 +554,8 @@ class ConvDecoder(nn.Module):
       if i != 0:
         inp_dim = 2 ** (len(self._kernels) - (i-1) - 2) * self._depth
       cnnt_layers.append(nn.ConvTranspose2d(inp_dim, depth, kernel, 2))
-      if act is not None:
+      
+      if i != len(self._kernels) and act is not None:
         cnnt_layers.append(act())
     self._cnnt_layers = nn.Sequential(*cnnt_layers)
 
