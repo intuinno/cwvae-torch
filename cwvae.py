@@ -339,7 +339,7 @@ class CWVAE(nn.Module):
                 loss = recon_loss
                 recon_loss_list.append(to_np(loss)) 
         num_gifs = 6
-        truth = recon_targets[0][:num_gifs]  
+        truth = recons[0][:num_gifs]  
         layer1_recon = self.pre_decode(embeddings[1], level=1)[:num_gifs, :T ]
         layer2_recon = self.pre_decode(embeddings[2], level=2)[:num_gifs, :T] 
         return_video = torch.cat([truth, layer1_recon, layer2_recon], 2)
