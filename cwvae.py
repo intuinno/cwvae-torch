@@ -146,6 +146,7 @@ class CWVAE(nn.Module):
         for level in range(self._levels):
             pre_embedding = self.pre_layers[level].encode(input)
             pre_embedding = einops.rearrange(pre_embedding, 'b t h w c -> (b t) h w c')
+            pre_embedding = pre_embedding.clone().detach().requires_grad_(False)
             embedding = self.layers[level]['encoder'](pre_embedding)
             pre_embedding = einops.rearrange(pre_embedding, '(b t) h w c -> b t h w c', b=B)
             embedding = einops.rearrange(embedding, '(b t) e -> b t e', b=B)
@@ -297,7 +298,7 @@ class CWVAE(nn.Module):
                     kl_loss = kl_losses[level]       
                     loss = kl_loss + recon_loss
                     if DEBUG:
-                        dot = make_dot(recon_loss, params=dict(self.pre_layers.named_parameters()))
+                        dot = make_dot(loss, params=dict(self.named_parameters()))
                         dot.render(f"loss_graph_{level}.pdf")
                     metrics[f'recon_loss_{level}'] = to_np(recon_loss)
                     metrics[f'kl_loss_{level}'] = to_np(kl_loss)
