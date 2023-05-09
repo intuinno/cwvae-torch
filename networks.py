@@ -413,7 +413,7 @@ class Conv3dAE(nn.Module):
         act(),
         nn.Conv3d(channels_factor * c_hid, channels_factor * c_hid, kernel_size=3, padding=1),
         # nn.BatchNorm3d(channels_factor*c_hid, affine=False)
-        nn.Tahn()
+        nn.Tanh()
         )
 
 
