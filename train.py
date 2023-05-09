@@ -123,7 +123,7 @@ if __name__ == "__main__":
             # x = next(iter(val_dataloader))
                 openl, recon_loss_list = model.pre_eval(x.to(configs.device))
                 if i == 0:
-                    logger.video('pre_video', openl)
+                    logger.video('training_pre_video', openl)
                 pre_level1_recon_loss.append(recon_loss_list[0])
                 pre_level2_recon_loss.append(recon_loss_list[1])
             pre_level1_recon_loss_mean = np.mean(pre_level1_recon_loss)
@@ -131,7 +131,7 @@ if __name__ == "__main__":
             logger.scalar('pre_video_nll_level1', pre_level1_recon_loss_mean)
             logger.scalar('pre_video_nll_level2', pre_level2_recon_loss_mean)
         
-        print(f"Training ...")
+        print(f"Pre-Training ...")
         if epoch < configs.level1_pretrain: 
             train_level = 2
         else:

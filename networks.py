@@ -404,7 +404,7 @@ class Conv3dAE(nn.Module):
     c_hid = channels_factor * input_channels 
     
     self.encoder = nn.Sequential(
-      nn.BatchNorm3d(input_channels, affine=False), 
+      # nn.BatchNorm3d(input_channels, affine=False), 
         nn.Conv3d(input_channels, c_hid, kernel_size=3, padding=1, stride=2),  # 64x64 => 32x32
         act(),
         nn.Conv3d(c_hid, c_hid, kernel_size=3, padding=1),
@@ -412,12 +412,13 @@ class Conv3dAE(nn.Module):
         nn.Conv3d(c_hid, channels_factor * c_hid, kernel_size=3, padding=1, stride=2),  # 32x32 => 16x16
         act(),
         nn.Conv3d(channels_factor * c_hid, channels_factor * c_hid, kernel_size=3, padding=1),
-        nn.BatchNorm3d(channels_factor*c_hid, affine=False)
+        # nn.BatchNorm3d(channels_factor*c_hid, affine=False)
+        nn.Tahn()
         )
 
 
     self.decoder = nn.Sequential(
-      nn.BatchNorm3d(channels_factor*c_hid, affine=False),
+      # nn.BatchNorm3d(channels_factor*c_hid, affine=False),
         nn.ConvTranspose3d(
             channels_factor * c_hid, c_hid, kernel_size=3, output_padding=1, padding=1, stride=2
         ),  # 16x16 => 32x32
@@ -427,7 +428,7 @@ class Conv3dAE(nn.Module):
         nn.ConvTranspose3d(c_hid, input_channels, kernel_size=3, output_padding=1, padding=1, stride=2),  # 32x32 => 64x64
         act(),
         nn.Conv3d(input_channels, input_channels, kernel_size=3, padding=1),
-        nn.BatchNorm3d(input_channels, affine=False)
+        # nn.BatchNorm3d(input_channels, affine=False)
     )
     
   def forward(self, x):
