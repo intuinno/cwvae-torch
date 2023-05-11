@@ -61,7 +61,13 @@ class CWVAE(nn.Module):
                 ) 
             else:
                 input_channels = configs.channels * (16) ** (level-1)
-                pre_encoder = networks.Conv3dAE(input_channels=input_channels)
+                if level == 1:
+                    emb_shape = (16,16,16)
+                elif level == 2:
+                    emb_shape = (4, 4, 256)
+                else:
+                    raise NotImplementedError
+                pre_encoder = networks.Conv3dVAE(input_channels=input_channels, emb_shape=emb_shape)
                 self.pre_layers.append(pre_encoder)
                 
                 H = shape[0] // 4**(level)
@@ -315,13 +321,19 @@ class CWVAE(nn.Module):
         with tools.RequiresGrad(self):
             # with torch.cuda.amp.autocast(self._use_amp):
 
-            recons, embeddings, recon_targets = self.hierarchical_pre_encode(obs)
+            recons, embeddings, recon_targets, dists = self.hierarchical_pre_encode(obs)
             
             loss = 0 
             for level in range(1, train_level):
                 recon_loss = F.mse_loss(recons[level], recon_targets[level])
-                loss += recon_loss 
-                metrics[f'recon_loss_{level}'] = to_np(recon_loss)
+                # kl_loss = torchd.kl_divergence(dists[level]._dist, self.pre_layers[level].prior._dist)
+                sigma = dists[level]._dist.stddev
+                sigmal = torch.log(sigma) * 2
+                mu = dists[level]._dist.mean
+                kl_loss = -0.5 * torch.sum(1 + sigma - mu.pow(2) - sigma.exp())
+                loss += recon_loss + kl_loss
+                metrics[f'pre_recon_loss_{level}'] = to_np(recon_loss)
+                metrics[f'pre_kl_loss_{level}'] = to_np(kl_loss)
                 
             metrics[f'pre_grad_norm_pre_encder'] = self.pre_opt(loss, self.pre_layers.parameters())
             if DEBUG:
@@ -332,7 +344,7 @@ class CWVAE(nn.Module):
     def pre_eval(self, data):
         _, T, _, _, _ = data.shape
         with torch.no_grad():
-            recons, embeddings, recon_targets = self.hierarchical_pre_encode(data)
+            recons, embeddings, recon_targets, _ = self.hierarchical_pre_encode(data)
             recon_loss_list = []
             for level in range(1, self._levels):
                 recon_loss = F.mse_loss(recons[level], recon_targets[level])
@@ -358,11 +370,12 @@ class CWVAE(nn.Module):
                 (batch size, timesteps, height, width, channel ) 
     """ 
                     
-        embeddings, recons, recon_targets = [], [], []
+        embeddings, recons, recon_targets, dists = [], [], [], []
         for level in range(0, self._levels):
             recon_targets.append(obs) 
-            recon, embedding = self.pre_layers[level].forward(obs)
+            recon, dist, embedding = self.pre_layers[level].forward(obs)
             recons.append(recon)
+            dists.append(dist)
             
 
             # embedding is [B, T, H, W, C] dimension
@@ -379,7 +392,7 @@ class CWVAE(nn.Module):
            
             embeddings.append(embedding)
            
-        return recons, embeddings, recon_targets
+        return recons, embeddings, recon_targets, dists
         
 
                 

@@ -386,7 +386,7 @@ class preprocessAE(nn.Module):
 
   def forward(self, obs):
     z = self.encode(obs)
-    return self.decode(z), z
+    return self.decode(z), None,z
  
 class Conv3dAE(nn.Module):
   
@@ -454,6 +454,82 @@ class Conv3dAE(nn.Module):
     z = einops.rearrange(z, 'b c t h w -> b t h w c ')
     return z
 
+
+
+class Conv3dVAE(nn.Module):
+  
+  def __init__(self, channels_factor=4, 
+               num_conv_layers=2, 
+               act=nn.ELU,
+               kernels=(3,3,3),
+               stride=(2,2,2),
+               input_width=64,
+               input_height=64,
+               input_channels=1,
+               emb_shape=(64,64,1),
+               temp_abs_factor=4):
+    super(Conv3dVAE, self).__init__()
+    
+    c_hid = channels_factor * input_channels 
+    
+    self.encoder = nn.Sequential(
+      # nn.BatchNorm3d(input_channels, affine=False), 
+        nn.Conv3d(input_channels, c_hid, kernel_size=3, padding=1, stride=2),  # 64x64 => 32x32
+        act(),
+        nn.Conv3d(c_hid, c_hid, kernel_size=3, padding=1),
+        act(),
+        nn.Conv3d(c_hid, channels_factor * c_hid, kernel_size=3, padding=1, stride=2),  # 32x32 => 16x16
+        act(),
+        nn.Conv3d(channels_factor * c_hid, 2*channels_factor * c_hid, kernel_size=3, padding=1),
+        Rearrange('b (c a) t h w -> a b t h w c', a=2),
+        )
+
+
+    self.decoder = nn.Sequential(
+      # nn.BatchNorm3d(channels_factor*c_hid, affine=False),
+        nn.ConvTranspose3d(
+            channels_factor * c_hid, c_hid, kernel_size=3, output_padding=1, padding=1, stride=2
+        ),  # 16x16 => 32x32
+        act(),
+        nn.Conv3d( c_hid,  c_hid, kernel_size=3, padding=1),
+        act(),
+        nn.ConvTranspose3d(c_hid, input_channels, kernel_size=3, output_padding=1, padding=1, stride=2),  # 32x32 => 64x64
+        act(),
+        nn.Conv3d(input_channels, input_channels, kernel_size=3, padding=1),
+        # nn.BatchNorm3d(input_channels, affine=False)
+    )
+    mu = torch.zeros(emb_shape)
+    std = torch.ones(emb_shape)
+    self.prior = tools.ContDist(torchd.independent.Independent(
+      torchd.normal.Normal(mu, std), 3)) 
+    
+  def forward(self, x):
+    dist = self.encode_dist(x)
+    z = dist.rsample()
+    recon = self.decode(z)
+    return recon, dist, z
+  
+  def decode(self, emb):
+    # Assume emb is (b t h w c)
+    z = einops.rearrange(emb, 'b t h w c -> b c t h w')
+    recon = self.decoder(z)
+    recon = einops.rearrange(recon, 'b c t h w -> b t h w c')
+    return recon 
+    
+  def encode_dist(self, x):
+    # Assume x is (b t h w c)
+    x = einops.rearrange(x, 'b t h w c -> b c t h w')
+    z = self.encoder(x)
+    mu, logvar = z[0], z[1]
+    std = torch.exp(0.5*logvar)
+    return tools.ContDist(torchd.independent.Independent(
+      torchd.normal.Normal(mu, std), 2)) 
+  
+  def encode(self, x):
+    dist = self.encode_dist(x)
+    z = dist.rsample()
+    return z 
+  
 class LocalConvEncoder(nn.Module):
   
   def __init__(self, 
