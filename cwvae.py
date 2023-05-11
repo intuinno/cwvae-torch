@@ -325,7 +325,7 @@ class CWVAE(nn.Module):
             
             loss = 0 
             for level in range(1, train_level):
-                recon_loss = F.mse_loss(recons[level], recon_targets[level])
+                recon_loss = F.mse_loss(recons[level], recon_targets[level],reduction='sum')
                 # kl_loss = torchd.kl_divergence(dists[level]._dist, self.pre_layers[level].prior._dist)
                 sigma = dists[level]._dist.stddev
                 sigmal = torch.log(sigma) * 2
