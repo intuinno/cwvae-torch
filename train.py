@@ -167,7 +167,7 @@ if __name__ == "__main__":
 
     print("PreTraining complete.")
 
-    for epoch in range(configs.num_epochs):
+    for epoch in range(configs.pre_encoder_num_epochs, configs.pre_encoder_num_epochs + configs.num_epochs):
         #Write evaluation summary
         print(f'======== Epoch {epoch} / {configs.num_epochs} ==========')
         now = datetime.now(tz)
