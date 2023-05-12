@@ -67,7 +67,9 @@ class CWVAE(nn.Module):
                     emb_shape = (4, 4, 256)
                 else:
                     raise NotImplementedError
-                pre_encoder = networks.Conv3dVAE(input_channels=input_channels, emb_shape=emb_shape)
+                pre_encoder = networks.Conv3dVAE(input_channels=input_channels, 
+                                                 emb_shape=emb_shape,
+                                                 discrete=configs.pre_discrete)
                 self.pre_layers.append(pre_encoder)
                 
                 H = shape[0] // 4**(level)
@@ -326,11 +328,8 @@ class CWVAE(nn.Module):
             loss = 0 
             for level in range(1, train_level):
                 recon_loss = F.mse_loss(recons[level], recon_targets[level],reduction='sum')
-                # kl_loss = torchd.kl_divergence(dists[level]._dist, self.pre_layers[level].prior._dist)
-                sigma = dists[level]._dist.stddev
-                sigmal = torch.log(sigma) * 2
-                mu = dists[level]._dist.mean
-                kl_loss = -0.5 * torch.sum(1 + sigma - mu.pow(2) - sigma.exp())
+                kl_loss = self.pre_layers[level].kl_divergence(dists[level])
+                kl_loss = kl_loss.sum()
                 loss += recon_loss + kl_loss
                 metrics[f'pre_recon_loss_{level}'] = to_np(recon_loss)
                 metrics[f'pre_kl_loss_{level}'] = to_np(kl_loss)

@@ -48,7 +48,7 @@ def load_dataset(cfg, **kwargs):
         raise ValueError("Dataset {} not supported.".format(cfg.dataset))
     
     if cfg.debug:
-        train_data = torch.utils.data.Subset(train_data, range(100))
+        train_data = torch.utils.data.Subset(train_data, range(200))
         test_data = torch.utils.data.Subset(test_data, range(10))
 
     # train_dataloader = DataLoader(train_data, batch_size=cfg.batch_size, shuffle=True, num_workers=2)
