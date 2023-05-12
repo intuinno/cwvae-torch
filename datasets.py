@@ -410,7 +410,7 @@ References:
         video = self.gray_scaler(video)
         video = einops.rearrange(video, 't c h w -> t h w c')
 
-        # video = video.to(torch.float32) / 255.0
+        video = video.to(torch.float32) / 255.0
 
         if self.transform is not None:
             video = self.transform(video)
