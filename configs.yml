@@ -276,8 +276,8 @@ pretrain:
   lr: 0.0003
   batch_size: 128
   num_epochs: 300
-  level1_pretrain: 50
-  pre_encoder_num_epochs: 300
+  level1_pretrain: 300
+  pre_encoder_num_epochs: 400
   debug: False 
 
 
