@@ -610,12 +610,12 @@ class LocalConvEncoder(nn.Module):
   
 class LocalConvDecoder(nn.Module):
   
-  def __init__(self, shape=(4, 16, 16), feat_size=232, act=nn.GELU):
+  def __init__(self, shape=(16, 16, 128), feat_size=232, act=nn.GELU):
     super(LocalConvDecoder, self).__init__()
     self._shape = shape
-    self.channels, self.height, self.width = shape
+    self.height, self.width, self.channels = shape
     cnnt_layers = []
-    self.linear_layer = nn.Linear(feat_size, self.channels  * self.width * self.height // 4)
+    self.linear_layer = nn.Linear(feat_size, self.channels  * self.width * self.height//4)
     self.cnnt_layers = nn.Sequential(
         nn.ConvTranspose2d(
             self.channels * 4, self.channels *2, kernel_size=3, output_padding=1, padding=1, stride=2

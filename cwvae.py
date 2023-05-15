@@ -98,7 +98,7 @@ class CWVAE(nn.Module):
                                                             )
                 
                 layer['decoder'] = networks.LocalConvDecoder(feat_size=feat_size,
-                                                          shape=(C, H, W))
+                                                          shape=emb_shape)
                 
                     
             layer['dynamics'] = networks.RSSM(
