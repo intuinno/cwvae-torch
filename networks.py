@@ -468,6 +468,7 @@ class Conv3dVAE(nn.Module):
                input_channels=1,
                emb_shape=(64,64,1),
                discrete=0,
+               hid_factor=1,
                temp_abs_factor=4):
     super(Conv3dVAE, self).__init__()
     
@@ -479,7 +480,7 @@ class Conv3dVAE(nn.Module):
     else:
       discrete_factor = 1
       
-    c_hid = channels_factor * input_channels
+    c_hid = channels_factor * input_channels * hid_factor
       
     if self.discrete:
       self.encoder = nn.Sequential(
@@ -490,7 +491,7 @@ class Conv3dVAE(nn.Module):
         nn.Conv3d(c_hid, channels_factor * c_hid, kernel_size=3, padding=1, stride=2),  # 32x32 => 16x16
         act(),
         nn.Conv3d( channels_factor * c_hid, channels_factor * c_hid, kernel_size=3, padding=1),
-        Rearrange('b (c1 c2) t h w ->  b t h w c1 c2', c2=discrete),
+        Rearrange('b (c1 c2) t h w ->  b t h w c1 c2', c2=discrete_factor),
         ) 
     else:
       self.encoder = nn.Sequential(

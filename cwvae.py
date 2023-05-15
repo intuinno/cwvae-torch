@@ -70,12 +70,15 @@ class CWVAE(nn.Module):
                 
                 if level == 1:
                     emb_shape = (16,16,16 * discrete_factor)
+                    hid_factor = discrete_factor
                 elif level == 2:
                     emb_shape = (4, 4, 256 * discrete_factor)
+                    hid_factor = 1
                 else:
                     raise NotImplementedError
                 pre_encoder = networks.Conv3dVAE(input_channels=input_channels, 
                                                  emb_shape=emb_shape,
+                                                 hid_factor=hid_factor,
                                                  discrete=configs.pre_discrete)
                 
                 self.pre_layers.append(pre_encoder)
@@ -91,7 +94,7 @@ class CWVAE(nn.Module):
                                                             channels_factor=2,
                                                             input_width=W,
                                                             input_height=H,
-                                                            input_channels=C,
+                                                            input_channels=input_channels,
                                                             )
                 
                 layer['decoder'] = networks.LocalConvDecoder(feat_size=feat_size,

@@ -256,7 +256,7 @@ pretrain:
   # pre_encoder_source_model: 'model/pre_encoder_source_model.pt'
   # pre_encoder_model: 'model/pre_encoder.pt'
   pre_encoder_model: 'None'
-  pre_discrete: 0
+  pre_discrete: 8
   precision: 16
 
   
