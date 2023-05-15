@@ -115,40 +115,40 @@ if __name__ == "__main__":
         now = datetime.now(tz)
         current_time = now.strftime("%H:%M:%S")
         print("Current Time =", current_time)
-        # print (f"Evaluating ... ") 
-        # logger.step = epoch
-        # if epoch % configs.eval_every == 0:
-        #     pre_level1_recon_loss, pre_level2_recon_loss = [], [] 
-        #     for i, x in enumerate(tqdm(val_dataloader)):
-        x = next(iter(val_dataloader))
-        #         openl, recon_loss_list = model.pre_eval(x.to(configs.device))
-        #         if i == 0:
-        #             logger.video('training_pre_video', openl)
-        #         pre_level1_recon_loss.append(recon_loss_list[0])
-        #         pre_level2_recon_loss.append(recon_loss_list[1])
-        #     pre_level1_recon_loss_mean = np.mean(pre_level1_recon_loss)
-        #     pre_level2_recon_loss_mean = np.mean(pre_level2_recon_loss)
-        #     logger.scalar('pre_video_nll_level1', pre_level1_recon_loss_mean)
-        #     logger.scalar('pre_video_nll_level2', pre_level2_recon_loss_mean)
+        print (f"Evaluating ... ") 
+        logger.step = epoch
+        if epoch % configs.eval_every == 0:
+            pre_level1_recon_loss, pre_level2_recon_loss = [], [] 
+            for i, x in enumerate(tqdm(val_dataloader)):
+        # x = next(iter(val_dataloader))
+                openl, recon_loss_list = model.pre_eval(x.to(configs.device))
+                if i == 0:
+                    logger.video('training_pre_video', openl)
+                pre_level1_recon_loss.append(recon_loss_list[0])
+                pre_level2_recon_loss.append(recon_loss_list[1])
+            pre_level1_recon_loss_mean = np.mean(pre_level1_recon_loss)
+            pre_level2_recon_loss_mean = np.mean(pre_level2_recon_loss)
+            logger.scalar('pre_video_nll_level1', pre_level1_recon_loss_mean)
+            logger.scalar('pre_video_nll_level2', pre_level2_recon_loss_mean)
         
-        # print(f"Pre-Training ...")
-        # if epoch < configs.level1_pretrain: 
-        #     train_level = 2
-        # else:
-        #     train_level = 3
-        # for i, x in enumerate(tqdm(train_dataloader)):
-        #     x = x.to(configs.device)
-        #     met = model.pre_train(x, train_level=train_level)
-        #     for name, values in met.items():
-        #         if not name in metrics.keys():
-        #             metrics[name] = [values]
-        #         else:
-        #             metrics[name].append(values)
+        print(f"Pre-Training ...")
+        if epoch < configs.level1_pretrain: 
+            train_level = 2
+        else:
+            train_level = 3
+        for i, x in enumerate(tqdm(train_dataloader)):
+            x = x.to(configs.device)
+            met = model.pre_train(x, train_level=train_level)
+            for name, values in met.items():
+                if not name in metrics.keys():
+                    metrics[name] = [values]
+                else:
+                    metrics[name].append(values)
         
         # Write training summary 
-        # for name,values in metrics.items():
-        #     logger.scalar(name, float(np.mean(values)))
-        #     metrics[name] = [] 
+        for name,values in metrics.items():
+            logger.scalar(name, float(np.mean(values)))
+            metrics[name] = [] 
         openl, recon_loss = model.video_pred(x)
         logger.video('train_openl', openl)
         logger.write(fps=True)
