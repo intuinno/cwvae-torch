@@ -38,6 +38,8 @@ class CWVAE(nn.Module):
         else:
             feat_size = configs.cell_stoch_size + configs.cell_deter_size
         
+        input_channels = configs.channels
+        
         for level in range(configs.levels):
             layer = nn.ModuleDict()
             if level == 0:
@@ -49,7 +51,7 @@ class CWVAE(nn.Module):
                     act=getattr(nn,configs.act),
                     kernels=configs.encoder_kernels
                 )
-                shape = (*configs.img_size, configs.channels)
+                shape = (*configs.img_size, input_channels)
                 
                 layer['decoder'] = networks.ConvDecoder(
                     feat_size, 
@@ -60,30 +62,41 @@ class CWVAE(nn.Module):
                     thin=configs.decoder_thin
                 ) 
             else:
-                input_channels = configs.channels * (16) ** (level-1)
+                if configs.pre_discrete:
+                    discrete_factor = configs.pre_discrete
+                else:
+                    discrete_factor = 1
+                    
+                
                 if level == 1:
-                    emb_shape = (16,16,16)
+                    emb_shape = (16,16,16 * discrete_factor)
                 elif level == 2:
-                    emb_shape = (4, 4, 256)
+                    emb_shape = (4, 4, 256 * discrete_factor)
                 else:
                     raise NotImplementedError
                 pre_encoder = networks.Conv3dVAE(input_channels=input_channels, 
                                                  emb_shape=emb_shape,
                                                  discrete=configs.pre_discrete)
+                
                 self.pre_layers.append(pre_encoder)
+                
                 
                 H = shape[0] // 4**(level)
                 W = shape[1] // 4**(level)
-                C = shape[2] * 16**(level)
-                inp_dim = H * W * C
+                C = shape[2] * 16**(level) 
+                
+                input_channels = C * discrete_factor
+                
                 layer['encoder'] = networks.LocalConvEncoder( configs.cell_embed_size,
                                                             channels_factor=2,
                                                             input_width=W,
                                                             input_height=H,
-                                                            input_channels=C)
+                                                            input_channels=C,
+                                                            )
                 
                 layer['decoder'] = networks.LocalConvDecoder(feat_size=feat_size,
                                                           shape=(C, H, W))
+                
                     
             layer['dynamics'] = networks.RSSM(
                 stoch=configs.cell_stoch_size,

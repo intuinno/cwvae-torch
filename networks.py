@@ -471,11 +471,17 @@ class Conv3dVAE(nn.Module):
                temp_abs_factor=4):
     super(Conv3dVAE, self).__init__()
     
-    c_hid = channels_factor * input_channels 
+    
     self.discrete = discrete
     
+    if discrete:
+      discrete_factor = discrete
+    else:
+      discrete_factor = 1
+      
+    c_hid = channels_factor * input_channels
+      
     if self.discrete:
-      discrete_dim = torch.tensor(emb_shape[2]).sqrt().to(int)
       self.encoder = nn.Sequential(
         nn.Conv3d(input_channels, c_hid, kernel_size=3, padding=1, stride=2),  # 64x64 => 32x32
         act(),
@@ -483,8 +489,8 @@ class Conv3dVAE(nn.Module):
         act(),
         nn.Conv3d(c_hid, channels_factor * c_hid, kernel_size=3, padding=1, stride=2),  # 32x32 => 16x16
         act(),
-        nn.Conv3d(channels_factor * c_hid, channels_factor * c_hid, kernel_size=3, padding=1),
-        Rearrange('b (c1 c2) t h w ->  b t h w c1 c2', c1=discrete_dim),
+        nn.Conv3d( channels_factor * c_hid, channels_factor * c_hid, kernel_size=3, padding=1),
+        Rearrange('b (c1 c2) t h w ->  b t h w c1 c2', c2=discrete),
         ) 
     else:
       self.encoder = nn.Sequential(
@@ -535,7 +541,7 @@ class Conv3dVAE(nn.Module):
     z = self.encoder(x)
     if self.discrete:
       dist = torchd.independent.Independent(
-        torchd.OneHotCategoricalStraightThrough(logits=z),2)
+        torchd.OneHotCategoricalStraightThrough(logits=z),3)
     else:
       mu, logvar = z[0], z[1]
       std = torch.exp(0.5*logvar)
@@ -547,7 +553,7 @@ class Conv3dVAE(nn.Module):
     if self.discrete:
       logits = torch.ones_like(dist.mean)
       prior = torchd.independent.Independent(
-        torchd.OneHotCategoricalStraightThrough(logits=logits),2) 
+        torchd.OneHotCategoricalStraightThrough(logits=logits),3) 
       kld = torchd.kl_divergence(dist, prior)
     else:
       sigma = dist._dist.stddev
@@ -577,6 +583,7 @@ class LocalConvEncoder(nn.Module):
                temp_abs_factor=4):
     super(LocalConvEncoder, self).__init__()
     
+
     c_hid = channels_factor * input_channels 
     cnn_output_dim = input_width * input_height * input_channels //4
     
