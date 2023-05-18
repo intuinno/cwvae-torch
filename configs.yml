@@ -50,7 +50,7 @@ defaults:
   beta: null
   clip_grad_norm_by: 100
   eps: 1e-4
-  weight_decay: 0.1
+  weight_decay: 0
   optimizer: "adam"
 
   # SUMMARIES
@@ -256,7 +256,7 @@ pretrain:
   # pre_encoder_source_model: 'model/pre_encoder_source_model.pt'
   # pre_encoder_model: 'model/pre_encoder.pt'
   pre_encoder_model: 'None'
-  pre_discrete: 8
+  pre_discrete: 0
   precision: 16
 
   
@@ -276,8 +276,8 @@ pretrain:
   lr: 0.0003
   batch_size: 128
   num_epochs: 300
-  level1_pretrain: 300
-  pre_encoder_num_epochs: 400
+  level1_pretrain: 50 
+  pre_encoder_num_epochs: 300
   debug: False 
 
 

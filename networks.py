@@ -376,12 +376,12 @@ class preprocessAE(nn.Module):
   
   def encode(self, obs):
     # obs = obs.clone()
-    # obs = obs  - 0.5 
-    # obs = obs * 2.0
+    obs = obs  - 0.5 
+    obs = obs * 2.0
     return obs
 
   def decode(self, obs):
-    # obs = obs / 2.0 + 0.5
+    obs = obs / 2.0 + 0.5
     return obs
 
   def forward(self, obs):
