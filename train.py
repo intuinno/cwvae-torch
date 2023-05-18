@@ -177,24 +177,16 @@ if __name__ == "__main__":
         logger.step = epoch
         if epoch % configs.eval_every == 0:
             print (f"Evaluating ... ") 
-            # recon_loss_list = []
-            # for i, x in enumerate(tqdm(val_dataloader)):
+            recon_loss_list = []
+            for i, x in enumerate(tqdm(val_dataloader)):
 
-            #     openl, recon_loss = model.video_pred(x.to(configs.device))
-            #     if i == 0:
-            #         logger.video('eval_openl', openl)
-            #     recon_loss_list.append(recon_loss) 
-            # recon_loss_mean = np.mean(recon_loss_list)
-            # logger.scalar('eval_video_nll', recon_loss_mean)
-            # if epoch == 0:
-            #     count_parameters(model)
-            
-            x = next(iter(val_dataloader))
-            openl, recon_loss = model.video_pred(x.to(configs.device), video_layer=2)
-            logger.video('eval_openl', openl)
-            for i, l in enumerate(recon_loss):
-                logger.scalar(f'eval_video_mse_{i}', l)
-            logger.write(fps=True)
+                openl, recon_loss = model.video_pred(x.to(configs.device))
+                if i == 0:
+                    logger.video('eval_openl', openl)
+                recon_loss_list.append(recon_loss) 
+            recon_loss_mean = np.mean(recon_loss_list)
+            logger.scalar('eval_video_nll', recon_loss_mean)
+
             openl, recon_loss_list = model.pre_eval(x.to(configs.device))
             logger.video('pre_video', openl)
         
