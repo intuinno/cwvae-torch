@@ -499,9 +499,9 @@ class Conv3dVAE(nn.Module):
           act(),
           nn.Conv3d(c_hid, c_hid, kernel_size=3, padding=1),
           act(),
-          nn.Conv3d(c_hid, 2*channels_factor * c_hid, kernel_size=3, padding=1, stride=2),  # 32x32 => 16x16
+          nn.Conv3d(c_hid, channels_factor * c_hid, kernel_size=3, padding=1, stride=2),  # 32x32 => 16x16
           act(),
-          nn.Conv3d(2*channels_factor * c_hid, 2*channels_factor * c_hid, kernel_size=3, padding=1),
+          nn.Conv3d(channels_factor * c_hid, 2*channels_factor * c_hid, kernel_size=3, padding=1),
           Rearrange('b (c a) t h w -> a b t h w c', a=2),
           )
 

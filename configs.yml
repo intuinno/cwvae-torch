@@ -50,7 +50,7 @@ defaults:
   beta: null
   clip_grad_norm_by: 100
   eps: 1e-4
-  weight_decay: 0
+  weight_decay: 0.1
   optimizer: "adam"
 
   # SUMMARIES
