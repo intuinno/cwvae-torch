@@ -1,4 +1,6 @@
 data/
+lightning_logs/
+MNIST/
 *.pt
 logs/
 *.zip
