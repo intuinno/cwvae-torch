@@ -252,10 +252,10 @@ pretrain:
   cell_deter_size: 200
   cell_embed_size: 200
   dyn_discrete: 0
-  pre_encoder_source_model: 'None'
-  # pre_encoder_source_model: 'model/pre_encoder_source_model.pt'
-  # pre_encoder_model: 'model/pre_encoder.pt'
-  pre_encoder_model: 'None'
+  # pre_encoder_source_model: 'None'
+  # pre_encoder_source_model: 'model/pre_encoder_source_ver1.pt'
+  pre_encoder_model: 'model/pre_encoder.pt'
+  # pre_encoder_model: 'None'
   pre_discrete: 0
   precision: 16
 
@@ -276,8 +276,8 @@ pretrain:
   lr: 0.0003
   batch_size: 128
   num_epochs: 300
-  level1_pretrain: 50 
-  pre_encoder_num_epochs: 300
+  level1_pretrain: 0 
+  pre_encoder_num_epochs: 0
   debug: False 
 
 
