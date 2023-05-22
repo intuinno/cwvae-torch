@@ -10,7 +10,7 @@ from torch import distributions as torchd
 
 
 
-DEBUG = True
+DEBUG = False
 
 if DEBUG:
     from torchview import draw_graph
