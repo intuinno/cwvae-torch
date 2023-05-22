@@ -320,7 +320,7 @@ class CWVAE(nn.Module):
                     recon_loss = nll.sum()
                     kl_loss = kl_losses[level]       
                     loss = kl_loss + recon_loss
-                    if self.debug:
+                    if self.debug == 'True':
                         dot = make_dot(loss, params=dict(self.named_parameters()))
                         dot.render(f"loss_graph_{level}.pdf")
                     metrics[f'recon_loss_{level}'] = to_np(recon_loss)
