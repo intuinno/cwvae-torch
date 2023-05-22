@@ -234,7 +234,7 @@ class RSSM(nn.Module):
       std = std + self._min_std
       return {'mean': mean, 'std': std}
 
-  def kl_loss(self, post, prior, forward, balance, free, scale):
+  def kl_loss(self, post, prior, forward, balance, free, scale, agg='mean'):
     kld = torchd.kl.kl_divergence
     dist = lambda x: self.get_dist(x)
     sg = lambda x: {k: v.detach() for k, v in x.items()}
@@ -249,9 +249,13 @@ class RSSM(nn.Module):
                               dist(sg(rhs)) if self._discrete else dist(sg(rhs))._dist)
       value_rhs = kld(dist(sg(lhs)) if self._discrete else dist(sg(lhs))._dist,
                       dist(rhs) if self._discrete else dist(rhs)._dist)
-      loss_lhs = torch.maximum(torch.mean(value_lhs), torch.Tensor([free])[0])
-      loss_rhs = torch.maximum(torch.mean(value_rhs), torch.Tensor([free])[0])
-      loss = mix * loss_lhs + (1 - mix) * loss_rhs
+      if agg == 'mean':
+        loss_lhs = torch.maximum(torch.mean(value_lhs), torch.Tensor([free])[0])
+        loss_rhs = torch.maximum(torch.mean(value_rhs), torch.Tensor([free])[0])
+      elif agg == 'sum':
+        loss_lhs = torch.maximum(value_lhs, torch.Tensor([free])).sum()
+        loss_rhs = torch.maximum(value_rhs, torch.Tensor([free])).sum()
+    loss = mix * loss_lhs + (1 - mix) * loss_rhs
     loss *= scale
     return loss, value
 

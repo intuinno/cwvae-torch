@@ -10,13 +10,11 @@ from torch import distributions as torchd
 
 
 
-DEBUG = False
 
-if DEBUG:
-    from torchview import draw_graph
-    import graphviz
-    # graphviz.set_jupyter_format('png')
-    from torchviz import make_dot, make_dot_from_trace
+from torchview import draw_graph
+import graphviz
+# graphviz.set_jupyter_format('png')
+from torchviz import make_dot, make_dot_from_trace
 
 to_np = lambda x: x.detach().cpu().numpy()
 
@@ -31,6 +29,7 @@ class CWVAE(nn.Module):
         self.layers = nn.ModuleList()
         self.pre_layers = nn.ModuleList()
         self.optimizers = []
+        self.debug = configs.debug
 
         
         if configs.dyn_discrete:
@@ -210,7 +209,7 @@ class CWVAE(nn.Module):
             inp = inputs[level]
             post, prior = self.layers[level]['dynamics'].observe(inp, context, actions)
             kl_loss, kl_value = self.layers[level]['dynamics'].kl_loss(
-                post, prior, self.configs.kl_forward, kl_balance, kl_free, kl_scale)
+                post, prior, self.configs.kl_forward, kl_balance, kl_free, kl_scale, agg='sum')
             prior_list.insert(0, prior)
             posterior_list.insert(0, post)
             kl_loss_list.insert(0, kl_loss)
@@ -321,7 +320,7 @@ class CWVAE(nn.Module):
                     recon_loss = nll.sum()
                     kl_loss = kl_losses[level]       
                     loss = kl_loss + recon_loss
-                    if DEBUG:
+                    if self.debug:
                         dot = make_dot(loss, params=dict(self.named_parameters()))
                         dot.render(f"loss_graph_{level}.pdf")
                     metrics[f'recon_loss_{level}'] = to_np(recon_loss)
