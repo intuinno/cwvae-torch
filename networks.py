@@ -253,8 +253,8 @@ class RSSM(nn.Module):
         loss_lhs = torch.maximum(torch.mean(value_lhs), torch.Tensor([free])[0])
         loss_rhs = torch.maximum(torch.mean(value_rhs), torch.Tensor([free])[0])
       elif agg == 'sum':
-        loss_lhs = torch.maximum(value_lhs, torch.Tensor([free]).to(self.device)).sum()
-        loss_rhs = torch.maximum(value_rhs, torch.Tensor([free]).to(self.device)).sum()
+        loss_lhs = torch.maximum(value_lhs, torch.Tensor([free]).to(self._device)).sum()
+        loss_rhs = torch.maximum(value_rhs, torch.Tensor([free]).to(self._device)).sum()
     loss = mix * loss_lhs + (1 - mix) * loss_rhs
     loss *= scale
     return loss, value
