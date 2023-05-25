@@ -201,6 +201,7 @@ if __name__ == "__main__":
                 stop_level = configs.levels - 3
             if stop_level < 0:
                 stop_level = 0 
+            stop_level = 0
             met = model.local_train(x, stop_level)
             for name, values in met.items():
                 if not name in metrics.keys():
