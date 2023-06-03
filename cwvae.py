@@ -317,7 +317,7 @@ class CWVAE(nn.Module):
                     #Calulate reconstruction loss
                     pred_obs = self.layers[level]['decoder'](feats[level])
                     nll = -pred_obs.log_prob(recon_target[level])
-                    recon_loss = nll.sum()
+                    recon_loss = nll.mean()
                     kl_loss = kl_losses[level]       
                     loss = kl_loss + recon_loss
                     if self.debug == 'True':
