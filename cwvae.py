@@ -209,7 +209,7 @@ class CWVAE(nn.Module):
             inp = inputs[level]
             post, prior = self.layers[level]['dynamics'].observe(inp, context, actions)
             kl_loss, kl_value = self.layers[level]['dynamics'].kl_loss(
-                post, prior, self.configs.kl_forward, kl_balance, kl_free, kl_scale, agg='sum')
+                post, prior, self.configs.kl_forward, kl_balance, kl_free, kl_scale, agg='mean')
             prior_list.insert(0, prior)
             posterior_list.insert(0, post)
             kl_loss_list.insert(0, kl_loss)
