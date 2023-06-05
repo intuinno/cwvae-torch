@@ -243,7 +243,10 @@ class RSSM(nn.Module):
     if balance == 0.5:
       value = kld(dist(lhs) if self._discrete else dist(lhs)._dist,
                   dist(rhs) if self._discrete else dist(rhs)._dist)
-      loss = torch.mean(torch.maximum(value, free))
+      value = torch.mean( torch.sum(value, dim=1))
+      loss = torch.maximum(value, free)
+      # loss = torch.mean(value)
+      
     else:
       value_lhs = value = kld(dist(lhs) if self._discrete else dist(lhs)._dist,
                               dist(sg(rhs)) if self._discrete else dist(sg(rhs))._dist)
@@ -255,7 +258,7 @@ class RSSM(nn.Module):
       elif agg == 'sum':
         loss_lhs = torch.maximum(value_lhs, torch.Tensor([free]).to(self._device)).sum()
         loss_rhs = torch.maximum(value_rhs, torch.Tensor([free]).to(self._device)).sum()
-    loss = mix * loss_lhs + (1 - mix) * loss_rhs
+      loss = mix * loss_lhs + (1 - mix) * loss_rhs
     loss *= scale
     return loss, value
 
