@@ -383,12 +383,12 @@ class preprocessAE(nn.Module):
   
   def encode(self, obs):
     # obs = obs.clone()
-    obs = obs  - 0.5 
-    obs = obs * 2.0
+    # obs = obs  - 0.5 
+    # obs = obs * 2.0
     return obs
 
   def decode(self, obs):
-    obs = obs / 2.0 + 0.5
+    # obs = obs / 2.0 + 0.5
     return obs
 
   def forward(self, obs):
@@ -682,7 +682,7 @@ class ConvDecoder(nn.Module):
       
       if i != len(self._kernels) and act is not None:
         cnnt_layers.append(act())
-    # cnnt_layers.append(nn.Tanh())
+    cnnt_layers.append(nn.Tanh())
     self._cnnt_layers = nn.Sequential(*cnnt_layers)
 
   def __call__(self, features, dtype=None):
