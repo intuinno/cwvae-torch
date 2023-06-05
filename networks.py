@@ -370,7 +370,7 @@ class ConvEncoder(nn.Module):
       layers.append(act())
     layers.append(Rearrange('b c h w -> b (c h w)'))  
     
-    layers.append(nn.LazyLinear (emb_dim))
+    # layers.append(nn.LazyLinear (emb_dim))
     self.layers = nn.Sequential(*layers)
 
   def __call__(self, obs):

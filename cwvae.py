@@ -30,6 +30,7 @@ class CWVAE(nn.Module):
         self.pre_layers = nn.ModuleList()
         self.optimizers = []
         self.debug = configs.debug
+        embed_size = [1024]
 
         
         if configs.dyn_discrete:
@@ -113,7 +114,7 @@ class CWVAE(nn.Module):
                 min_std=configs.cell_min_stddev,
                 cell=configs.dyn_cell,
                 num_actions=0,
-                embed=configs.enc_dense_hidden_size,
+                embed=embed_size[level],
                 device=configs.device
             )
                 
