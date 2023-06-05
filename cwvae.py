@@ -44,7 +44,7 @@ class CWVAE(nn.Module):
             if level == 0:
                 self.pre_layers.append(networks.preprocessAE())
                 layer['encoder'] = networks.ConvEncoder(
-                    configs.cell_embed_size,
+                    configs.enc_dense_hidden_size,
                     channels=configs.channels,
                     depth=configs.cnn_depth,
                     act=getattr(nn,configs.act),
@@ -103,7 +103,7 @@ class CWVAE(nn.Module):
             layer['dynamics'] = networks.RSSM(
                 stoch=configs.cell_stoch_size,
                 deter=configs.cell_deter_size,
-                hidden=configs.cell_deter_size,
+                hidden=configs.cell_embed_size,
                 layers_input=configs.dyn_input_layers,
                 layers_output=configs.dyn_output_layers,
                 discrete=configs.dyn_discrete,
@@ -113,7 +113,7 @@ class CWVAE(nn.Module):
                 min_std=configs.cell_min_stddev,
                 cell=configs.dyn_cell,
                 num_actions=0,
-                embed=configs.cell_embed_size,
+                embed=configs.enc_dense_hidden_size,
                 device=configs.device
             )
                 
