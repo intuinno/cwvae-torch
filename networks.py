@@ -244,7 +244,7 @@ class RSSM(nn.Module):
       value = kld(dist(lhs) if self._discrete else dist(lhs)._dist,
                   dist(rhs) if self._discrete else dist(rhs)._dist)
       value = torch.mean( torch.sum(value, dim=1))
-      loss = torch.maximum(value, free)
+      loss = torch.maximum(value, torch.Tensor[free].to(self._device))
       # loss = torch.mean(value)
       
     else:
