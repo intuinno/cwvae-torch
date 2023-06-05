@@ -328,8 +328,12 @@ class CWVAE(nn.Module):
                     metrics[f'loss_{level}'] = to_np(loss)
                     metrics[f'grad_norm_{level}'] = self.optimizers[level](loss, self.layers[level].parameters())
                     metrics[f'kl_{level}'] = to_np(torch.mean(kl_values[level]))
-                    metrics[f'prior_ent_{level}'] = to_np(torch.mean(self.layers[level]['dynamics'].get_dist(priors[level]).entropy()))
-                    metrics[f'posterior_ent_{level}'] = to_np(torch.mean(self.layers[level]['dynamics'].get_dist(posteriors[level]).entropy()))
+                    sum_entropy = torch.sum(self.layers[level]['dynamics'].get_dist(priors[level]).entropy(), dim=1)
+                    mean_entropy = torch.mean(sum_entropy) 
+                    metrics[f'prior_ent_{level}'] = to_np(mean_entropy)
+                    sum_entropy = torch.sum(self.layers[level]['dynamics'].get_dist(posteriors[level]).entropy(), dim=1)
+                    mean_entropy = torch.mean(sum_entropy) 
+                    metrics[f'posterior_ent_{level}'] = to_np(mean_entropy)
 
         return metrics
 
