@@ -146,7 +146,7 @@ def load_dataset(cfg, **kwargs):
     else:
         raise ValueError("Dataset {} not supported.".format(cfg.dataset))
     
-    if False:
+    if cfg.debug:
         train_data = torch.utils.data.Subset(train_data, range(200))
         test_data = torch.utils.data.Subset(test_data, range(10))
 

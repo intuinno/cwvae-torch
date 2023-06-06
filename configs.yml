@@ -104,13 +104,14 @@ mmnist_cont_1level:
   exp_name: "continous_1level"
   levels: 1
   img_size: [64, 64]
-  tmp_abs_factor: 6
+  tmp_abs_factor: 4
   dec_stddev: 1.0
   enc_dense_hidden_size: 1000
   cell_type: RSSMCell
   cell_stoch_size: 20
   cell_deter_size: 200
   cell_embed_size: 200
+  debug: False
 
   
 

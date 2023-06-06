@@ -84,18 +84,19 @@ if __name__ == "__main__":
     for epoch in range(configs.num_epochs):
             
         #Write evaluation summary
-        print(f'======== Epoch {epoch} / {configs.num_epochs} ==========')
-        now = datetime.now(tz)
-        current_time = now.strftime("%H:%M:%S")
-        print("Current Time =", current_time)
-        print (f"Evaluating ... ") 
-        logger.step = epoch
-        if epoch % configs.eval_every == 0:
-            x = next(iter(val_dataloader))
-            openl, recon_loss = model.video_pred(x.to(configs.device))
-            logger.video('eval_openl', openl)
-            logger.scalar('eval_video_nll', recon_loss)
-            logger.write(fps=True)
+        if not configs.debug:
+            print(f'======== Epoch {epoch} / {configs.num_epochs} ==========')
+            now = datetime.now(tz)
+            current_time = now.strftime("%H:%M:%S")
+            print("Current Time =", current_time)
+            print (f"Evaluating ... ") 
+            logger.step = epoch
+            if epoch % configs.eval_every == 0:
+                x = next(iter(val_dataloader))
+                openl, recon_loss = model.video_pred(x.to(configs.device))
+                logger.video('eval_openl', openl)
+                logger.scalar('eval_video_nll', recon_loss)
+                logger.write(fps=True)
         
         print(f"Training ...")
         for i, x in enumerate(tqdm(train_dataloader)):
