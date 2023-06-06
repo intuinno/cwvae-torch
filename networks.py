@@ -226,7 +226,7 @@ class RSSM(nn.Module):
           'tanh5': lambda: 5.0 * torch.tanh(mean / 5.0),
       }[self._mean_act]()
       std = {
-          'softplus': lambda: F.softplus(std, beta=8),
+          'softplus': lambda: F.softplus(std, beta=1),
           'abs': lambda: torch.abs(std + 1),
           'sigmoid': lambda: torch.sigmoid(std),
           'sigmoid2': lambda: 2 * torch.sigmoid(std / 2),
@@ -682,7 +682,7 @@ class ConvDecoder(nn.Module):
       
       if i != len(self._kernels) and act is not None:
         cnnt_layers.append(act())
-    cnnt_layers.append(nn.Tanh())
+    # cnnt_layers.append(nn.Tanh())
     self._cnnt_layers = nn.Sequential(*cnnt_layers)
 
   def __call__(self, features, dtype=None):
