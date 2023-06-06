@@ -254,7 +254,7 @@ class RSSM(nn.Module):
                       dist(rhs) if self._discrete else dist(rhs)._dist)
       if agg == 'mean':
         loss_lhs = torch.maximum(torch.mean(torch.sum(value_lhs, dim=1)), torch.Tensor([free])[0])
-        loss_rhs = torch.maximum(torch.mean(torch.sum(value_rhs, dim=1), torch.Tensor([free])[0])
+        loss_rhs = torch.maximum(torch.mean(torch.sum(value_rhs, dim=1)), torch.Tensor([free])[0])
       elif agg == 'sum':
         loss_lhs = torch.maximum(value_lhs, torch.Tensor([free]).to(self._device)).sum()
         loss_rhs = torch.maximum(value_rhs, torch.Tensor([free]).to(self._device)).sum()
