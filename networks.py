@@ -226,7 +226,7 @@ class RSSM(nn.Module):
           'tanh5': lambda: 5.0 * torch.tanh(mean / 5.0),
       }[self._mean_act]()
       std = {
-          'softplus': lambda: F.softplus(std),
+          'softplus': lambda: F.softplus(std, beta=8),
           'abs': lambda: torch.abs(std + 1),
           'sigmoid': lambda: torch.sigmoid(std),
           'sigmoid2': lambda: 2 * torch.sigmoid(std / 2),
