@@ -258,8 +258,8 @@ pretrain:
   # pre_encoder_model: 'None'
   pre_discrete: 0
   precision: 16
-  kl_balance: 0.8
-  kl_free: 1.0
+  kl_balance: 0.5
+  kl_free: 0.0
 
 
   
