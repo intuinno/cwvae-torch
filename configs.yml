@@ -132,7 +132,7 @@ mmnist_cont_1level:
   num_epochs: 300
 
   # SUMMARIES
-  open_loop_ctx: 36
+  open_loop_ctx: 16
   num_val_batches: 1
   save_named_model_every: 5000
 
