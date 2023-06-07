@@ -324,17 +324,19 @@ class CWVAE(nn.Module):
                     if self.debug == 'True':
                         dot = make_dot(loss, params=dict(self.named_parameters()))
                         dot.render(f"loss_graph_{level}.pdf")
-                    metrics[f'recon_loss_{level}'] = to_np(recon_loss)
-                    metrics[f'kl_loss_{level}'] = to_np(kl_loss)
-                    metrics[f'loss_{level}'] = to_np(loss)
-                    metrics[f'grad_norm_{level}'] = self.optimizers[level](loss, self.layers[level].parameters())
-                    metrics[f'kl_{level}'] = to_np(torch.mean(kl_values[level]))
-                    sum_entropy = torch.sum(self.layers[level]['dynamics'].get_dist(priors[level]).entropy(), dim=1)
-                    mean_entropy = torch.mean(sum_entropy) 
-                    metrics[f'prior_ent_{level}'] = to_np(mean_entropy)
-                    sum_entropy = torch.sum(self.layers[level]['dynamics'].get_dist(posteriors[level]).entropy(), dim=1)
-                    mean_entropy = torch.mean(sum_entropy) 
-                    metrics[f'posterior_ent_{level}'] = to_np(mean_entropy)
+
+            for level in reversed(range(self._levels-1, stop_level-1, -1)):            
+                metrics[f'recon_loss_{level}'] = to_np(recon_loss)
+                metrics[f'kl_loss_{level}'] = to_np(kl_loss)
+                metrics[f'loss_{level}'] = to_np(loss)
+                metrics[f'grad_norm_{level}'] = self.optimizers[level](loss, self.layers[level].parameters())
+                metrics[f'kl_{level}'] = to_np(torch.mean(kl_values[level]))
+                sum_entropy = torch.sum(self.layers[level]['dynamics'].get_dist(priors[level]).entropy(), dim=1)
+                mean_entropy = torch.mean(sum_entropy) 
+                metrics[f'prior_ent_{level}'] = to_np(mean_entropy)
+                sum_entropy = torch.sum(self.layers[level]['dynamics'].get_dist(posteriors[level]).entropy(), dim=1)
+                mean_entropy = torch.mean(sum_entropy) 
+                metrics[f'posterior_ent_{level}'] = to_np(mean_entropy)
 
         return metrics
 

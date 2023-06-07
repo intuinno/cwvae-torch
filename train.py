@@ -175,7 +175,7 @@ if __name__ == "__main__":
         print("Current Time =", current_time)
         
         logger.step = epoch
-        if epoch % configs.eval_every == 0:
+        if epoch % configs.eval_every == 0 and not configs.debug:
             print (f"Evaluating ... ") 
             recon_loss_list = []
             for i, x in enumerate(tqdm(val_dataloader)):

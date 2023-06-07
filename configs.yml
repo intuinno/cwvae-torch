@@ -257,9 +257,9 @@ pretrain:
   pre_encoder_model: 'model/pre_encoder.pt'
   # pre_encoder_model: 'None'
   pre_discrete: 0
-  precision: 16
-  kl_balance: 0.5
-  kl_free: 0.0
+  precision: 32
+  kl_balance: 0.8
+  kl_free: 1.0
 
 
   
@@ -277,7 +277,7 @@ pretrain:
 
   # TRAINING
   lr: 0.0003
-  batch_size: 128
+  batch_size: 50
   num_epochs: 300
   level1_pretrain: 0 
   pre_encoder_num_epochs: 0

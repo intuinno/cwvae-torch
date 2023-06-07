@@ -253,8 +253,10 @@ class RSSM(nn.Module):
       value_rhs = kld(dist(sg(lhs)) if self._discrete else dist(sg(lhs))._dist,
                       dist(rhs) if self._discrete else dist(rhs)._dist)
       if agg == 'mean':
-        loss_lhs = torch.maximum(torch.mean(torch.sum(value_lhs, dim=1)), torch.Tensor([free])[0])
-        loss_rhs = torch.maximum(torch.mean(torch.sum(value_rhs, dim=1)), torch.Tensor([free])[0])
+        # loss_lhs = torch.maximum(torch.mean(torch.sum(value_lhs, dim=1)), torch.Tensor([free])[0])
+        # loss_rhs = torch.maximum(torch.mean(torch.sum(value_rhs, dim=1)), torch.Tensor([free])[0])
+        loss_lhs = torch.maximum(torch.mean(value_lhs), torch.Tensor([free])[0])
+        loss_rhs = torch.maximum(torch.mean(value_rhs), torch.Tensor([free])[0])
       elif agg == 'sum':
         loss_lhs = torch.maximum(value_lhs, torch.Tensor([free]).to(self._device)).sum()
         loss_rhs = torch.maximum(value_rhs, torch.Tensor([free]).to(self._device)).sum()
@@ -383,12 +385,13 @@ class preprocessAE(nn.Module):
   
   def encode(self, obs):
     # obs = obs.clone()
-    # obs = obs  - 0.5 
+    obs = obs  - 0.5 
     # obs = obs * 2.0
     return obs
 
   def decode(self, obs):
     # obs = obs / 2.0 + 0.5
+    obs = obs + 0.5
     return obs
 
   def forward(self, obs):
