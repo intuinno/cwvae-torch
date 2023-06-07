@@ -58,6 +58,9 @@ if __name__ == "__main__":
     now = datetime.now(tz)
     date_time = now.strftime("%Y%m%d_%H%M%S")
     exp_name += date_time
+
+    if configs.debug:
+        exp_name = "DEBUG_" + exp_name
     
     # Creating model dir with experiment name.
     exp_logdir = rootdir / configs.logdir / configs.dataset / exp_name

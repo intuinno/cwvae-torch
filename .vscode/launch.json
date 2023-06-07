@@ -35,7 +35,7 @@
                 "--exp_name", "debug",
                 "--debug", "True",
                 "--levels", "1",
-                "--device", "cpu",
+                "--device", "cuda:3",
                 // "--load_model", "logs/mmnist/3level-discrete_20230412_161938/latest_model.pt"
             ]
         },
