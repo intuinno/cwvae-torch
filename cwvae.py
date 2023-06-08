@@ -31,6 +31,7 @@ class CWVAE(nn.Module):
         self.optimizers = []
         self.debug = configs.debug
         embed_size = [1024]
+        self._open_loop_ctx = configs.open_loop_ctx
 
         
         if configs.dyn_discrete:
@@ -294,7 +295,8 @@ class CWVAE(nn.Module):
         return openl, recon_loss_list, initial_decode
         
     def video_pred(self, data, video_layer=0):
-        num_initial = self._tmp_abs_factor ** (self._levels-1)        
+        # num_initial = self._tmp_abs_factor ** (self._levels-1)        
+        num_initial = self._open_loop_ctx
         openl, recon_loss, initial_decode = self.pred(data, num_initial=num_initial, video_layer=0)
         num_gifs = 6
         data = self.pre_layers[0].encode(data)
