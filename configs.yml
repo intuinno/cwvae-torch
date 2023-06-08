@@ -242,7 +242,7 @@ local_discrete:
 pretrain:
   # MODEL
   exp_name: "pretrain"
-  levels: 3
+  levels: 2
   img_size: [64, 64]
   tmp_abs_factor: 4
   dec_stddev: 1.0
