@@ -62,7 +62,8 @@
                 "--configs", "defaults",  "pretrain",
                 "--exp_name", "debug",
                 // "--levels", "3",
-                "--device", "cuda:2",
+                "--device", "cpu",
+                // "--device", "cuda:2",
                 "--debug", "True",
                 // "--load_model", "logs/mmnist/merge-01_20230505_154630/latest_checkpoint.pt"
             ]

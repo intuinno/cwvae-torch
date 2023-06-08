@@ -301,6 +301,7 @@ class CWVAE(nn.Module):
         truth = self.pre_layers[0].decode(data[:num_gifs])  
         openl = torch.cat(openl, 2)
         initial_decode = torch.cat(initial_decode,2)
+        initial_decode = 1 - initial_decode
         model = torch.cat([initial_decode,  openl], 1)[:num_gifs]
         return_video = torch.cat([truth, model], 2) 
         # return_video = (return_video * 255).to(dtype=torch.uint8)
