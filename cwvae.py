@@ -30,7 +30,7 @@ class CWVAE(nn.Module):
         self.pre_layers = nn.ModuleList()
         self.optimizers = []
         self.debug = configs.debug
-        embed_size = [1024]
+        embed_size = [1024, 200, 200]
         self._open_loop_ctx = configs.open_loop_ctx
 
         
