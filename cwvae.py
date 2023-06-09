@@ -57,7 +57,7 @@ class CWVAE(nn.Module):
                 layer['decoder'] = networks.ConvDecoder(
                     feat_size, 
                     depth=configs.cnn_depth,
-                    act=getattr(nn, configs.act),
+                    act=getattr(nn, configs.decoder_act),
                     shape=(configs.channels, *configs.img_size),
                     kernels=configs.decoder_kernels,
                     thin=configs.decoder_thin
