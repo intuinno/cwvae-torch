@@ -265,7 +265,7 @@ class CWVAE(nn.Module):
         image_list = []
         recon_loss_list = []
         for level in range(self._levels):
-            recon = self.layers[level]['decoder'](feat_list[level]).sample()
+            recon = self.layers[level]['decoder'](feat_list[level]).mode()
             recon_image = self.pre_decode(recon, level=level)
             recon_image = recon_image[:, :data.shape[1]] 
             mse = F.mse_loss( recon_image, data)
