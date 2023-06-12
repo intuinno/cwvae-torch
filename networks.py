@@ -90,12 +90,12 @@ class RSSM(nn.Module):
       self._ims_stat_layer = nn.Linear(self._hidden, self._stoch*self._discrete)
       self._obs_stat_layer = nn.Linear(self._hidden, self._stoch*self._discrete)
     else:
-      # self._ims_stat_layer = nn.Linear(self._hidden, 2*self._stoch)
-      # self._obs_stat_layer = nn.Linear(self._hidden, 2*self._stoch)
-      self._ims_stat_mean_layer = nn.Linear(self._hidden, self._stoch)
-      self._ims_stat_std_layer = nn.Linear(self._hidden, self._stoch)
-      self._obs_stat_mean_layer = nn.Linear(self._hidden, self._stoch)
-      self._obs_stat_std_layer = nn.Linear(self._hidden, self._stoch)
+      self._ims_stat_layer = nn.Linear(self._hidden, 2*self._stoch)
+      self._obs_stat_layer = nn.Linear(self._hidden, 2*self._stoch)
+      # self._ims_stat_mean_layer = nn.Linear(self._hidden, self._stoch)
+      # self._ims_stat_std_layer = nn.Linear(self._hidden, self._stoch)
+      # self._obs_stat_mean_layer = nn.Linear(self._hidden, self._stoch)
+      # self._obs_stat_std_layer = nn.Linear(self._hidden, self._stoch)
        
  
   def initial(self, batch_size):
@@ -219,19 +219,19 @@ class RSSM(nn.Module):
       logit = x.reshape(list(x.shape[:-1]) + [self._stoch, self._discrete])
       return {'logit': logit}
     else:
-      # if name == 'ims':
-      #   x = self._ims_stat_layer(x)
-      # elif name == 'obs':
-      #   x = self._obs_stat_layer(x)
-      # else:
-      #   raise NotImplementedError
-      # mean, std = torch.split(x, [self._stoch]*2, -1)
       if name == 'ims':
-        mean = self._ims_stat_mean_layer(x)
-        std = self._ims_stat_std_layer(x+0.54)
+        x = self._ims_stat_layer(x)
       elif name == 'obs':
-        mean = self._obs_stat_mean_layer(x)
-        std = self._obs_stat_std_layer(x+0.54)
+        x = self._obs_stat_layer(x)
+      else:
+        raise NotImplementedError
+      mean, std = torch.split(x, [self._stoch]*2, -1)
+      # if name == 'ims':
+      #   mean = self._ims_stat_mean_layer(x)
+      #   std = self._ims_stat_std_layer(x+0.54)
+      # elif name == 'obs':
+      #   mean = self._obs_stat_mean_layer(x)
+      #   std = self._obs_stat_std_layer(x+0.54)
       mean = {
           'none': lambda: mean,
           'tanh5': lambda: 5.0 * torch.tanh(mean / 5.0),
